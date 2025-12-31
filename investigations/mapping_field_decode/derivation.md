@@ -30,7 +30,7 @@
 
 ## 3. Experiment: The Decoder
 
-*   [mapping_check.c](./mapping_check.c): A unified decoder module.
+*   [mapping_hw.c](./mapping_hw.c): A unified decoder module.
 *   **TESTS**:
     *   Allocate `malloc()` -> Decoder says "ANON, Mapped".
     *   Allocate `mmap(file)` -> Decoder says "FILE, Mapped".
