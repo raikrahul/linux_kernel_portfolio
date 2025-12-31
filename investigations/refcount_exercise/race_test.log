@@ -1,0 +1,5 @@
+RACE_TEST:start:pid=225178
+RACE_TEST:mmap_success:addr=0x7b5b0174f000
+RACE_TEST:data_written
+CHILD:pid=225180:reading_shared=HELLO
+CHILD:munmap_done:exiting

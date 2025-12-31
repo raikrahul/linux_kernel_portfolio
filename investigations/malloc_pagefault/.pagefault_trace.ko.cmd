@@ -1,0 +1,1 @@
+savedcmd_pagefault_trace.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /usr/src/linux-headers-6.14.0-37-generic/scripts/module.lds -o pagefault_trace.ko pagefault_trace.o pagefault_trace.mod.o .module-common.o

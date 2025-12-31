@@ -44,17 +44,17 @@ static int __init proof_init(void) {
   printk(KERN_INFO "PROOF:init: pid=%d addr=%lx\n", target_pid, target_addr);
 
   /*TODO01:GET_PID_STRUCT:find_get_pid(pid_num)→returns_struct_pid_ptr*/
-  pid_struct = /* TODO: CALL find_get_pid HERE */;
+  pid_struct = find_get_pid(target_pid);
   if (!pid_struct)
     return -ESRCH;
 
   /*TODO02:GET_TASK_STRUCT:get_pid_task(pid_struct,
    * PIDTYPE_PID)→returns_task_struct_ptr*/
-  task = /* TODO: CALL get_pid_task HERE */;
+  task = get_pid_task(pid_struct, PIDTYPE_PID);
   if (!task)
     return -ESRCH;
 
-  /*TODO03:GET_MM_STRUCT:task->mm→describes_process_memory_space*/
+  /*RRRO03:GET_MM_STRUCT:task->mm→describes_process_memory_space*/
   mm = task->mm;
   if (!mm) {
     put_task_struct(task);
@@ -65,7 +65,7 @@ static int __init proof_init(void) {
   mmap_read_lock(mm);
 
   /*TODO04:DERIVE_PGD:pgd_offset(mm, addr)→uses_mm->pgd_and_addr_bits[47:39]*/
-  pgd = /* TODO: CALL pgd_offset HERE */;
+  pgd = pgd_offset(mm, target_addr);
   if (pgd_none(*pgd) || pgd_bad(*pgd)) {
     printk("PROOF:BAD_PGD\n");
     goto out;
@@ -73,21 +73,21 @@ static int __init proof_init(void) {
 
   /*TODO05:DERIVE_P4D:p4d_offset(pgd,
    * addr)→on_4level_paging_P4D=PGD→just_wraps_it*/
-  p4d = /* TODO: CALL p4d_offset HERE */;
+  p4d = p4d_offset(pgd, target_addr);
   if (p4d_none(*p4d) || p4d_bad(*p4d)) {
     printk("PROOF:BAD_P4D\n");
     goto out;
   }
 
   /*TODO06:DERIVE_PUD:pud_offset(p4d, addr)→uses_p4d_and_addr_bits[38:30]*/
-  pud = /* TODO: CALL pud_offset HERE */;
+  pud = pud_offset(p4d, target_addr);
   if (pud_none(*pud) || pud_bad(*pud)) {
     printk("PROOF:BAD_PUD\n");
     goto out;
   }
 
   /*TODO07:DERIVE_PMD:pmd_offset(pud, addr)→uses_pud_and_addr_bits[29:21]*/
-  pmd = /* TODO: CALL pmd_offset HERE */;
+  pmd = pmd_offset(pud, target_addr);
   if (pmd_none(*pmd) || pmd_bad(*pmd)) {
     printk("PROOF:BAD_PMD\n");
     goto out;
@@ -96,7 +96,7 @@ static int __init proof_init(void) {
   /*TODO08:DERIVE_PTE:pte_offset_kernel(pmd,
    * addr)→WARNING:pte_offset_map_might_fail_linking→TRY_pte_offset_kernel*/
   /*Why_pte_offset_kernel?→returns_direct_mapped_address_without_kmap_overhead*/
-  pte = /* TODO: CALL pte_offset_kernel HERE */;
+  pte = pte_offset_kernel(pmd, target_addr);
   if (!pte) {
     printk("PROOF:BAD_PTE\n");
     goto out;
@@ -104,7 +104,7 @@ static int __init proof_init(void) {
 
   /*TODO09:EXTRACT_PHYSICAL:pte_pfn(*pte) << PAGE_SHIFT → PFN * 4096 =
    * PhysAddr*/
-  phys = /* TODO: CALCULATE PHYS ADDR */;
+  phys = pte_pfn(*pte) << PAGE_SHIFT;
   printk(KERN_INFO "PROOF:RESULT: pid=%d virt=%lx -> phys=%lx\n", target_pid,
          target_addr, phys);
 

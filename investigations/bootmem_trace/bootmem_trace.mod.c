@@ -18,46 +18,34 @@ __section(".gnu.linkonce.this_module") = {
 
 static const struct modversion_info ____versions[]
 __used __section("__versions") = {
-	{ 0xd272d446, "__fentry__" },
-	{ 0xb54d37ac, "alloc_pages_noprof" },
-	{ 0xbd03ed67, "vmemmap_base" },
-	{ 0x44decd6f, "hugetlb_optimize_vmemmap_key" },
-	{ 0x44decd6f, "devmap_managed_key" },
-	{ 0x3009e428, "__put_devmap_managed_folio_refs" },
-	{ 0x23b336c6, "__folio_put" },
 	{ 0xe8213e80, "_printk" },
+	{ 0xf654f750, "_totalram_pages" },
 	{ 0xd272d446, "__x86_return_thunk" },
+	{ 0xd272d446, "__fentry__" },
+	{ 0x4ff89cd9, "pcpu_hot" },
 	{ 0xba157484, "module_layout" },
 };
 
 static const u32 ____version_ext_crcs[]
 __used __section("__version_ext_crcs") = {
-	0xd272d446,
-	0xb54d37ac,
-	0xbd03ed67,
-	0x44decd6f,
-	0x44decd6f,
-	0x3009e428,
-	0x23b336c6,
 	0xe8213e80,
+	0xf654f750,
 	0xd272d446,
+	0xd272d446,
+	0x4ff89cd9,
 	0xba157484,
 };
 static const char ____version_ext_names[]
 __used __section("__version_ext_names") =
-	"__fentry__\0"
-	"alloc_pages_noprof\0"
-	"vmemmap_base\0"
-	"hugetlb_optimize_vmemmap_key\0"
-	"devmap_managed_key\0"
-	"__put_devmap_managed_folio_refs\0"
-	"__folio_put\0"
 	"_printk\0"
+	"_totalram_pages\0"
 	"__x86_return_thunk\0"
+	"__fentry__\0"
+	"pcpu_hot\0"
 	"module_layout\0"
 ;
 
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "398E715C5CE333E75D8A12A");
+MODULE_INFO(srcversion, "BE6199E6F9D2579E8258B57");

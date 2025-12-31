@@ -19,6 +19,7 @@ Chronological record of axiomatic inquiries into the Linux Kernel.
 ## Batch 3: Advanced Concurrency & Mapping
 *   **[Decoding the Map](./mapping_field_decode/derivation.md)**: A complete taxonomy of page states.
 *   **[Split Page Table Locks](./ptlock_split/derivation.md)**: Manufacturing contention to prove the need for fine-grained locking.
+*   **[Refcount & Fork Trace](./refcount_exercise/derivation.md)**: Proving Copy-On-Write mechanics via Kprobes and physical memory tracing.
 
 ---
 *Return to [Home](../README.md)*
