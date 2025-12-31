@@ -1,52 +1,99 @@
-/*bootmem_trace.c:DRAW[RAM:16154906624bytes→pages:3944069→vmemmap:0xffffea0000000000→struct_page[0..3944068]→each:64bytes]→DRAW[zones:DMA(PFN<4096)→DMA32(4096≤PFN<1048576)→Normal(PFN≥1048576)]→DRAW[GFP_KERNEL:BIT(6)|BIT(7)|BIT(10)|BIT(11)=0x40|0x80|0x400|0x800=0xCC0]*/
-#include <linux/module.h>
-#include <linux/kernel.h>
+/* L01: AXIOM: BIOS/UEFI scans RAM at power-on.
+ * L02: AXIOM: E820 Map = Memory Map provided by BIOS to Kernel.
+ * L03: PUNISHMENT_CALCULATION:
+ *      - GIVEN: Entry: Start=0x100000, Size=0x80000000 (2GB), Type=RAM(1).
+ *      - GIVEN: Entry: Start=0x80100000, Size=0x1000 (4KB), Type=RESERVED(2).
+ *      - QUESTION: Calculate PFN overlap.
+ *      - Start PFN = 0x100000 >> 12 = 0x100 = 256.
+ *      - End PFN = (0x100000 + 0x80000000) >> 12 = 0x80100 = 524,544.
+ *      - Hole PFN = 0x80100000 >> 12 = 0x80100 = 524,544.
+ *      - CONCLUSION: Strict adjacency. No overlap.
+ */
+
 #include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/memblock.h> // [L04: Early Boot Allocator]
 #include <linux/mm.h>
-#include <linux/gfp.h>
-#include <linux/mm_types.h>
-#include <linux/page_ref.h>
+#include <linux/module.h>
+
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("User");
-MODULE_DESCRIPTION("Bootmem Trace");
-static int __init bootmem_init(void)
-{
-    /*DRAW[stack:bootmem_init()→local_vars:page_ptr(8bytes@rbp-8)=???|pfn(8bytes@rbp-16)=???|phys(8bytes@rbp-24)=???|ref(4bytes@rbp-28)=???]*/
-    struct page *page_ptr;
-    unsigned long pfn;
-    phys_addr_t phys;
-    int ref;
-    printk(KERN_INFO "BOOTMEM_TRACE:__init\n");
-    /*DRAW[before_alloc:buddy_allocator→zone_Normal→free_area[0]→nr_free=42261(from/proc/buddyinfo)→first_free_page@PFN=?]→alloc_page(GFP_KERNEL=0xCC0)→__alloc_pages(gfp=0xCC0,order=0,node=-1)→get_page_from_freelist()→rmqueue(zone=Normal,order=0)→__rmqueue_smallest()→list_del(page)→nr_free:42261→42260→set_page_refcounted(page)→atomic_set(&page->_refcount,1)→return page*/
-    page_ptr = alloc_page(GFP_KERNEL);
-    /*DRAW[after_alloc:page_ptr=0xffffea0007a21f40(example)→page_ptr[0..63bytes]:+0=flags(8bytes)=0x0000000000010000|+8=_refcount(4bytes)=1|+12=_mapcount(4bytes)=-1|+16=mapping(8bytes)=NULL|+24=index(8bytes)=0|+32=private(8bytes)=0|+40=_last_cpupid(4bytes)=0|+44..63=pad]*/
-    if (!page_ptr) { printk(KERN_ERR "BOOTMEM_TRACE:alloc_failed\n"); return -ENOMEM; }
-    /*DRAW[page_to_pfn:page_ptr=0xffffea0007a21f40→vmemmap=0xffffea0000000000→diff=0xffffea0007a21f40-0xffffea0000000000=0x7a21f40=128065344→pfn=128065344/64=2001021]→page_to_pfn(page_ptr)→returns(page_ptr-vmemmap)/sizeof(struct_page)=(0xffffea0007a21f40-0xffffea0000000000)/64=2001021*/
-    pfn = page_to_pfn(page_ptr);
-    /*DRAW[pfn_to_phys:pfn=2001021→PAGE_SIZE=4096=2^12→phys=2001021×4096→step1:2001021×4000=8004084000→step2:2001021×96=192098016→step3:8004084000+192098016=8196182016=0x1e887d000]→phys=(phys_addr_t)pfn*PAGE_SIZE=2001021×4096=8196182016=0x1e887d000*/
-    phys = (phys_addr_t)pfn * PAGE_SIZE;
-    /*DRAW[page_ref_count:page_ptr=0xffffea0007a21f40→page_ptr+8=0xffffea0007a21f48→_refcount@0xffffea0007a21f48→atomic_read(&_refcount)→.counter=1]→page_ref_count(page_ptr)→returns atomic_read(&page->_refcount)=1*/
-    ref = page_ref_count(page_ptr);
-    /*DRAW[zone_check:pfn=2001021→DMA_boundary=4096→DMA32_boundary=1048576→2001021<4096?✗→2001021<1048576?✗→2001021≥1048576?✓→zone=Normal]*/
-    printk(KERN_INFO "BOOTMEM_TRACE:page=%px,pfn=0x%lx(%lu),phys=0x%llx,ref=%d,zone=%s\n", page_ptr, pfn, pfn, phys, ref, pfn >= 1048576 ? "Normal" : (pfn >= 4096 ? "DMA32" : "DMA"));
-    /*DRAW[before_get_page:page_ptr+8→_refcount=1]→get_page(page_ptr)→page_ref_inc(page)→atomic_inc(&page->_refcount)→lock_cmpxchg→_refcount:1→1+1=2→DRAW[after_get_page:_refcount=2]*/
-    printk(KERN_INFO "BOOTMEM_TRACE:before_get:ref=%d\n", page_ref_count(page_ptr));
-    get_page(page_ptr);
-    printk(KERN_INFO "BOOTMEM_TRACE:after_get:ref=%d(expect2)\n", page_ref_count(page_ptr));
-    /*DRAW[before_put1:_refcount=2]→put_page(page_ptr)→page_ref_dec_and_test(page)→atomic_dec_and_test(&page->_refcount)→lock_decl→_refcount:2→2-1=1→test:1==0?✗→return0→page_NOT_freed→DRAW[after_put1:_refcount=1]*/
-    printk(KERN_INFO "BOOTMEM_TRACE:before_put1:ref=%d\n", page_ref_count(page_ptr));
-    put_page(page_ptr);
-    printk(KERN_INFO "BOOTMEM_TRACE:after_put1:ref=%d(expect1)\n", page_ref_count(page_ptr));
-    /*DRAW[before_put2:_refcount=1]→put_page(page_ptr)→atomic_dec_and_test→lock_decl→_refcount:1→1-1=0→test:0==0?✓→return1→__page_cache_release(page)→free_unref_page(page)→free_unref_page_commit()→list_add(&page->lru,&pcp->lists[migratetype])→page_returned_to_pcp_freelist→DRAW[after_put2:_refcount=0→page_freed→page_ptr=DANGLING_POINTER→any_access=UNDEFINED_BEHAVIOR]*/
-    printk(KERN_INFO "BOOTMEM_TRACE:before_put2:ref=%d\n", page_ref_count(page_ptr));
-    put_page(page_ptr);
-    printk(KERN_INFO "BOOTMEM_TRACE:after_put2:page_freed(ref_read_is_UB)\n");
-    /*DRAW[before_put3_BUG:page_freed→_refcount=0(or_reused_by_kernel_with_refcount=1)→put_page(page_ptr)→atomic_dec_and_test→_refcount:0-1=-1→VM_BUG_ON_PAGE(page_ref_count(page)<=0,page)→-1<=0?✓→BUG()→kernel_panic_or_WARN→dmesg_shows:page:0xffffea0007a21f40_refcount:-1_mapcount:-1→DRAW[after_put3:_refcount=-1→CORRUPTION→if_page_reallocated_we_decremented_WRONG_PAGE_refcount]]*/
-    /*UNCOMMENT_TO_TRIGGER_BUG:put_page(page_ptr);*/
-    printk(KERN_INFO "BOOTMEM_TRACE:BUG_LINE_COMMENTED→uncomment_line_above_to_trigger_refcount_underflow\n");
-    printk(KERN_INFO "BOOTMEM_TRACE:init_complete\n");
-    return 0;
+MODULE_AUTHOR("Primate_Coder");
+MODULE_DESCRIPTION("Axiomatic Bootmem/Memblock Trace");
+
+/*
+ * FUNCTION: bootmem_trace_init
+ * L05: NOTE: This runs AFTER boot, so memblock is already retired.
+ *      We query headers/macros here because memblock APIs are __init.
+ */
+static int __init bootmem_trace_init(void) {
+  /* L06: VAR: i@Stack. SIZE: 4B. */
+  int i;
+
+  printk(KERN_INFO "BOOTMEM: Start. CPU=%d\n", smp_processor_id());
+
+  /*
+   * STEP 1: Understanding Early Allocator (Memblock)
+   * -----------------------------------------------
+   * 1. WHAT: Manage RAM before Buddy Allocator exists.
+   * 2. WHY: Kernel needs to alloc struct pages to build Buddy.
+   * 3. WHERE: .init.text (discarded later).
+   * 4. CALCULATION (Punishment - Struct Page Overhead):
+   *      - RAM = 64GB.
+   *      - Pages = 64 * 1024^3 / 4096 = 16,777,216 Pages.
+   *      - Struct Page Array = 16,777,216 * 64 Bytes = 1,073,741,824 Bytes.
+   *      - RESULT: 1GB of RAM is consumed just for struct page metadata!
+   *      - BOOTMEM JOB: Alloc 1GB contiguous block early on.
+   */
+
+  /*
+   * STEP 2: e820__mapped_any() [Hypothetical usage]
+   * -----------------------------------------------
+   * 1. WHAT: Query hardware memory map.
+   * 2. CALCULATION (Binary Map):
+   *      - Type 1 = RAM (Usable).
+   *      - Type 2 = Reserved (ACPI, NVS).
+   *      - If Map says: 0-640KB RAM, 640KB-1MB Res, 1MB-4GB RAM.
+   *      - Max PFN = 4GB / 4KB = 1,048,576.
+   *      - LowMem PFN Limit (x86_32) = 896MB = 229,376.
+   *      - HighMem PFN Start = 229,376.
+   */
+
+  /*
+   * STEP 3: max_pfn global variable
+   * -------------------------------
+   * 1. WHAT: Highest valid PFN.
+   * 2. WHERE: Exported by kernel MM.
+   * 3. CALCULATION:
+   *      - If max_pfn = 0x100000 (4GB Limit).
+   *      - PhysAddr = 0x100000000 (4GB).
+   *      - If PAE enabled (36-bit): max_pfn could be 0x1000000 (64GB).
+   */
+  printk(KERN_INFO "BOOTMEM: max_pfn=%lu\n", max_pfn);
+
+  /*
+   * STEP 4: totalram_pages()
+   * ------------------------
+   * 1. WHAT: Count of managed pages.
+   * 2. WHY: Memory passed from Memblock -> Buddy.
+   * 3. CALCULATION (Efficiency):
+   *      - Total Pages = max_pfn - holes - firmware_reserved - kernel_code.
+   *      - If 8GB RAM installed.
+   *      - totalram_pages says 7.8GB.
+   *      - Missing 200MB? -> Integrated Graphics + BIOS Stolen Memory.
+   */
+  printk(KERN_INFO "BOOTMEM: totalram_pages=%lu\n", totalram_pages());
+
+  return 0;
 }
-static void __exit bootmem_exit(void) { printk(KERN_INFO "BOOTMEM_TRACE:exit\n"); }
-module_init(bootmem_init);
-module_exit(bootmem_exit);
+
+static void __exit bootmem_trace_exit(void) {
+  printk(KERN_INFO "BOOTMEM: Exit.\n");
+}
+
+module_init(bootmem_trace_init);
+module_exit(bootmem_trace_exit);
+
+/*
+ * === DENSE AXIOMATIC TRACE: bootmem_trace_init ===
+ * DRAW[Memory:Stack@RBP]→CALL[printk]→READ[max_pfn]→CALC[Phys=PFN*4096]→LOG[max_pfn]→CALL[totalram_pages()]→READ[atomic_t(_totalram_pages)]→RETURN[Count]→LOG[TotalRAM]→RETURN[0]
+ */
