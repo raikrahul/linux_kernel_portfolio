@@ -1,45 +1,36 @@
-/* L01: AXIOM: Machine = x86_64. CPU = 64-bit.
- * L02: AXIOM: Bit = 0 or 1. Byte = 8 bits.
- * L03: AXIOM: Physical RAM = Contiguous Array of Bytes.
- * L04: AXIOM: Page = 4096 bytes (2^12) block of RAM.
- * L05: AXIOM: PFN (Page Frame Number) = PhysicalAddress >> 12.
- * L06: DERIVATION: Order N -> 2^N contiguous pages.
- * L07: CALCULATION: Order 0 = 1 page = 4096 bytes.
- * L08: CALCULATION: Order 3 = 2^3 pages = 8 pages; Size = 8 * 4096 = 32768
- * bytes.
+/* L01: AXIOM: Machine=x86_64. Bit=0/1. Byte=8bits. RAM=Array[0..MAX].
+ * L02: DEFINITION: Page=4096B(2^12). PFN=Addr>>12.
+ * L03: PUZZLE_HARDER(Punishment):
+ *      - GIVEN: RAM=4TB. PFN_MAX = 4TB/4KB = 1,073,741,824 (2^30).
+ *      - TARGET: Order 11 (2^11=2048 pages).
+ *      - ADDRESS_A: PFN 1,000,000,000 (0x3B9ACA00).
+ *      - BINARY: 0011_1011_1001_1010_1100_1010_0000_0000.
+ *      - CHECK: Is A start of Order 11?
+ *      - LOGIC: Order 11 mask = (1<<11)-1 = 0x7FF = 111_1111_1111 (Bin).
+ *      - ALIGNMENT: 0x3B9ACA00 & 0x7FF = 0x200 (10_0000_0000) != 0.
+ *      - CONCLUSION: ✗ Failed. PFN 10^9 is INSIDE an Order 11 block, at offset
+ * 512.
+ *      - CORRECT_START: 0x3B9ACA00 & ~0x7FF = 0x3B9AC800 (PFN 999,999,488).
  */
 
-#include <linux/gfp.h>    // [L13: Const: GFP_KERNEL = 0xCC0 -> Wait Allowed]
-#include <linux/init.h>   // [L11: Attr: __init -> .init.text Section]
-#include <linux/kernel.h> // [L10: Func: printk -> Ring Buffer Writer]
-#include <linux/mm.h>     // [L12: Struct: page -> 64 bytes Metadata]
-#include <linux/module.h> // [L09: Macro: MODULE_LICENSE -> Modinfo Metadata]
+#include <linux/gfp.h>    // [L08: Const: GFP_KERNEL=0xCC0]
+#include <linux/init.h>   // [L06: Attr: __init -> Section cleanup]
+#include <linux/kernel.h> // [L05: Func: printk -> RingBuffer]
+#include <linux/mm.h>     // [L07: Struct: page -> 64B Metadata]
+#include <linux/module.h> // [L04: Macro: MODULE_LICENSE -> Modinfo]
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Primate_Coder");
 MODULE_DESCRIPTION("Axiomatic Buddy Allocator Trace");
 
-/*
- * FUNCTION: buddy_frag_init
- * L14: WHAT: Entry point. Called by kernel thread (insmod).
- * L15: CONTEXT: Process Context (Can Sleep).
- * L16: STACK_FRAME_DRAWING:
- *      [High Addr]
- *      | Return Address (8B) [RBP+8]
- *      | Saved RBP      (8B) [RBP]
- *      | pages[3]       (8B) [RBP-16]
- *      | pages[2]       (8B) [RBP-24]
- *      | pages[1]       (8B) [RBP-32]
- *      | pages[0]       (8B) [RBP-40]
- *      | order3_page    (8B) [RBP-48]
- *      | i              (4B) [RBP-52]
- *      | pfn            (8B) [RBP-64]
- *      [Low Addr]
- */
 static int __init buddy_frag_init(void) {
+  /* L09: VAR: pages[4]@Stack. SIZE: 32B. VAL: Garbage. */
   struct page *pages[4];
+  /* L10: VAR: order3_page@Stack. SIZE: 8B. VAL: Garbage. */
   struct page *order3_page;
+  /* L11: VAR: i@Stack. SIZE: 4B. VAL: Garbage. */
   int i;
+  /* L12: VAR: pfn@Stack. SIZE: 8B. VAL: Garbage. */
   unsigned long pfn;
 
   printk(KERN_INFO "BUDDY: Start. CPU=%d\n", smp_processor_id());
@@ -47,21 +38,19 @@ static int __init buddy_frag_init(void) {
   /*
    * STEP 1: alloc_pages(GFP_KERNEL, 3)
    * ----------------------------------
-   * 1. WHAT: Request for 8 contiguous physical pages.
-   *    - Size = 8 * 4096 = 32,768 bytes.
-   * 2. WHY: To create a high-order contiguous block.
-   * 3. WHERE: Zone Normal (Start PFN > 1,048,576).
-   * 4. WHO: Buddy Allocator (mm/page_alloc.c).
-   * 5. WHEN: Immediate.
+   * 1. WHAT: Alloc 2^3=8 contiguous pages (32KB).
+   * 2. WHY: Stress test Order 3 FreeList.
+   * 3. WHERE: Zone Normal (Start PFN > 1M).
+   * 4. WHO: __alloc_pages_nodemask (Buddy).
+   * 5. WHEN: Immediate (via fast path or reclaim).
    * 6. WITHOUT: NULL (-ENOMEM).
-   * 7. CALCULATION: (Harder Example - Punishment)
-   *    - Target: Order 3 (8 Pages).
-   *    - Candidate PFN: 0x1234567.
-   *    - Binary: ...0001 0010 0011 0100 0101 0110 0111
-   *    - Alignment Check: Is PFN % 8 == 0?
-   *    - Last 3 bits: 111 (7). 7 != 0.
-   *    - Result: PFN 0x1234567 CANNOT be start of Order 3.
-   *    - Nearest Valid Aligned PFN: 0x1234560 (Last bits 000).
+   * 7. CALCULATON (Large Scale):
+   *      - Order 3 Block Size = 32,768 Bytes.
+   *      - If RAM = 16GB = 16 * 1024^3 = 17,179,869,184 Bytes.
+   *      - Max Order 3 Blocks = 17,179,869,184 / 32,768 = 524,288 Blocks.
+   *      - Bitmap Overhead (1 bit per block) = 524,288 bits = 65,536 Bytes =
+   * 64KB.
+   *      - ∴ Tracking 16GB needs only 64KB of bitmap (Efficient).
    */
   order3_page = alloc_pages(GFP_KERNEL, 3);
 
@@ -73,20 +62,19 @@ static int __init buddy_frag_init(void) {
   /*
    * STEP 2: page_to_pfn(order3_page)
    * --------------------------------
-   * 1. WHAT: Pointer arithmetic to derive index.
-   * 2. WHY: Kernel identifies pages by integer index (PFN).
-   * 3. WHERE: Array 'vmemmap'.
+   * 1. WHAT: PFN Extraction.
+   * 2. WHY: Hardware uses Address, OS uses PFN index.
+   * 3. WHERE: vmemmap array.
    * 4. WHO: CPU ALU.
-   * 5. WHEN: < 1 ns.
-   * 6. WITHOUT: Cannot calculate PhysAddr.
-   * 7. CALCULATION: (Middle Scale)
-   *    - Input Ptr: 0xffffea00000f4240 (Random high address).
-   *    - Base:      0xffffea0000000000.
-   *    - Diff:      0x00000000000f4240 = 1,000,000 bytes.
-   *    - Struct Size: 64 bytes.
-   *    - Index: 1,000,000 / 64 = 15,625.
-   *    - PFN: 15,625.
-   *    - Phys Addr: 15,625 * 4096 = 64,000,000 (64MB).
+   * 5. WHEN: < 1 cycle.
+   * 6. WITHOUT: No Physical Address known.
+   * 7. CALCULATON (Edge Case/Fractional):
+   *      - If Ptr is at end of memory.
+   *      - Ptr = Base + (MaxPFN * 64).
+   *      - Calc: ( (Base + MaxPFN*64) - Base ) / 64 = MaxPFN. ✓
+   *      - If Strut Size changed to 56B (Fractional fit in CacheLine 64B):
+   *      - 1,000,000 Pages * 56B = 56MB Metadata. (vs 64MB).
+   *      - Saving = 8MB. (But alignment cost > saving).
    */
   pfn = page_to_pfn(order3_page);
 
@@ -95,19 +83,20 @@ static int __init buddy_frag_init(void) {
 
   for (i = 0; i < 4; i++) {
     /*
-     * STEP 3: alloc_page(GFP_KERNEL) [In Loop]
-     * ----------------------------------------
-     * 1. WHAT: Request for 1 physical page.
-     * 2. WHY: Fragment memory.
-     * 3. WHERE: Zone Normal.
+     * STEP 3: alloc_page(GFP_KERNEL) [Loop]
+     * -------------------------------------
+     * 1. WHAT: Single Page Alloc (4KB).
+     * 2. WHY: Fragment the blocks.
+     * 3. WHERE: PCP List -> Zone FreeList.
      * 4. WHO: PCP Allocator.
-     * 5. WHEN: Fast path.
-     * 6. WITHOUT: Loop fails.
-     * 7. CALCULATION: (Fractional/Edge)
-     *    - Total System Pages: 2,000,000.
-     *    - Allocating: 1.
-     *    - Ratio: 1 / 2,000,000 = 0.00005% of RAM.
-     *    - Impact: Negligible on capacity, high on fragmentation logic.
+     * 5. WHEN: Fast Path.
+     * 6. WITHOUT: Panic/Fail.
+     * 7. CALCULATON (Mid Scale):
+     *      - Alloc 4 pages.
+     *      - Gap Analysis: If PFNs are 100, 102, 104, 106.
+     *      - Gaps are 101, 103, 105.
+     *      - Can we merge 102+103? Only if 102 is even aligned (102%2==0). ✓
+     *      - Can we merge 101+102? No. 101%2 != 0. ✗
      */
     pages[i] = alloc_page(GFP_KERNEL);
     if (!pages[i]) {
@@ -121,24 +110,20 @@ static int __init buddy_frag_init(void) {
   }
 
   /*
-   * STEP 4: Buddy Verification Loop
-   * -------------------------------
-   * 1. WHAT: XOR Calculation.
-   * 2. WHY: Find merge candidate.
-   * 3. WHERE: CPU Registers.
+   * STEP 4: XOR Buddy Check
+   * -----------------------
+   * 1. WHAT: Determine Sibling PFN.
+   * 2. WHY: Merging requirement.
+   * 3. WHERE: Register.
    * 4. WHO: ALU.
-   * 5. WHEN: Immediate.
-   * 6. WITHOUT: No merging.
-   * 7. CALCULATION: (Bit Pattern Punishment)
-   *    - PFN A: 0xABC  (1010 1011 1100).
-   *    - Order 0 Bit: ......^.......1.
-   *    - XOR Result:    1010 1011 1101 (0xABD).
-   *    - PFN B: 0xABD  (1010 1011 1101).
-   *    - Order 0 Bit: ......^.......1.
-   *    - XOR Result:    1010 1011 1100 (0xABC).
-   *    - CONCLUSION: 0xABC and 0xABD are buddies.
-   *    - TRICK: 0xABD and 0xABE are NOT buddies (0xD=1101, 0xE=1110. XOR=0011
-   * -> Diff bit 0 AND 1).
+   * 5. WHEN: Pre-Free check.
+   * 6. WITHOUT: No compaction.
+   * 7. CALCULATON (Bit Pattern Punishment):
+   *      - PFN = 0xFFFF_FFFF_FFFF_FFFF (Max 64-bit).
+   *      - Order 0 Buddy = PFN ^ 1.
+   *      - Result: 0xFFFF_FFFF_FFFF_FFFE.
+   *      - Order 63 Buddy (Theoretical) = PFN ^ (1<<63).
+   *      - Result: 0x7FFF_FFFF_FFFF_FFFF.
    */
   for (i = 0; i < 4; i++) {
     unsigned long cur = page_to_pfn(pages[i]);
