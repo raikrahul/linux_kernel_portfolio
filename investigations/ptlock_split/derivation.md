@@ -58,8 +58,8 @@ We hypothesize that if 12 threads write to different addresses, but those addres
 *   **CONCLUSION**: All 12 threads modify different Data Pages, but their PTEs live in the **same** PTE Table Page.
 
 ### The Code
-*   [code_contention.c](./code_contention.c): Userspace program to generate the fault pattern.
-*   [module_split_lock.c](./module_split_lock.c): Kernel module to observe the locking behavior.
+*   [code_contention.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/ptlock_split/code_contention.c): Userspace program to generate the fault pattern.
+*   [module_split_lock.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/ptlock_split/module_split_lock.c): Kernel module to observe the locking behavior.
 
 ---
 

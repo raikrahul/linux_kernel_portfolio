@@ -30,7 +30,7 @@
 
 ## 3. Experiment: The Decoder
 
-*   [mapping_hw.c](./mapping_hw.c): A unified decoder module.
+*   [mapping_hw.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/mapping_field_decode/mapping_hw.c): A unified decoder module.
 *   **TESTS**:
     *   Allocate `malloc()` -> Decoder says "ANON, Mapped".
     *   Allocate `mmap(file)` -> Decoder says "FILE, Mapped".

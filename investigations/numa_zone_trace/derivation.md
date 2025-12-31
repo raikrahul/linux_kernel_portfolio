@@ -35,7 +35,7 @@ When a request comes for `ZONE_NORMAL`, what if it's full?
 
 ## 3. Experiment: Tracing the Layout
 
-*   [numa_zone_trace.c](./numa_zone_trace.c): Kernel module to walk the `pg_data_t` (Node) and `zone_struct` hierarchy.
+*   [numa_zone_trace.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/numa_zone_trace/numa_zone_trace.c): Kernel module to walk the `pg_data_t` (Node) and `zone_struct` hierarchy.
 *   **OBSERVATION** (Live Data):
     *   Node 0 present.
     *   Node 0 has Zones: DMA, DMA32, Normal.

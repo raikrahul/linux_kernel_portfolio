@@ -39,7 +39,7 @@ We trace the physical memory layout as reported by the kernel during early boot.
 ## 4. Experiment: Kernel Module Trace
 We wrote a module to inspect the state of memory *after* boot.
 
-*   [bootmem_trace.c](./bootmem_trace.c): A kernel module to print current memory zones.
+*   [bootmem_trace.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/bootmem_trace/bootmem_trace.c): A kernel module to print current memory zones.
 
 ### derived_trace.log
 ```text

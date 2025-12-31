@@ -35,7 +35,7 @@ if ((unsigned long)page->mapping & PAGE_MAPPING_ANON) {
 
 ## 3. Experiment: Bitwise Inspection
 
-*   [anon_check.c](./anon_check.c): Module to inspect `page->mapping` of different memory areas.
+*   [anon_check.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/anon_page_cache_metadata/anon_file_hw.c): Module to inspect `page->mapping` of different memory areas.
 *   **OBSERVATION**:
     *   Trace `malloc` area: `mapping` ends in `1` (Odd). -> Anon.
     *   Trace `mmap(file)` area: `mapping` ends in `0` (Even). -> File.

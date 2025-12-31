@@ -41,7 +41,7 @@ The kernel uses flags to pass constraints to the allocator.
 
 We wrote a kernel module that intentionally violates these rules.
 
-*   [gfp_context_bug.c](./gfp_context_bug.c): A module that attempts a `GFP_KERNEL` allocation inside a `spin_lock` region (atomic context).
+*   [gfp_context_bug.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/gfp_context_bug/gfp_context_bug.c): A module that attempts a `GFP_KERNEL` allocation inside a `spin_lock` region (atomic context).
 *   **OBSERVATION**: The kernel detects this "Sleep inside Atomic" bug and prints a stack trace (`might_sleep()`).
 
 ## 5. Conclusion

@@ -52,7 +52,7 @@ struct page {
 
 ## 3. Experiment: Reading the Same Bytes
 
-*   [metadata_trace.c](./metadata_trace.c): Module to inspect a page in different states.
+*   [metadata_trace.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/metadata_union/metadata_union.c): Module to inspect a page in different states.
 *   **OBSERVATION**:
     *   **Allocated Page**: Offset 16 is a pointer (`0xffff...`).
     *   **Freed Page**: Offset 16 becomes distinct integer patterns (Buddy Order).

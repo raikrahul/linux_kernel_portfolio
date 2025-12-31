@@ -60,7 +60,7 @@ We verify the state of the buddy lists on the live machine.
     *   **CONCLUSION**: Memory is highly fragmented. A request for 8MB (Order 11) would fail immediately (MAX_ORDER=11, max allocation is Order 10).
 
 ## 4. The Code
-*   [buddy_fragment.c](./buddy_fragment.c): Kernel module that attempts to allocate high-order pages and measures failure rates.
+*   [buddy_fragment.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/buddy_fragment/buddy_fragment.c): Kernel module that attempts to allocate high-order pages and measures failure rates.
 
 ## 5. Conclusion
 The Buddy System trades internal fragmentation (wasted space inside 4MB blocks) for external fragmentation resistance and O(1) merge speed using the XOR axiom.

@@ -33,7 +33,7 @@ The kernel maintains two main lists for each zone:
 
 ## 3. Experiment: Tracing Eviction Candidates
 
-*   [lru_trace.c](./lru_trace.c): Inspecting `page->lru` pointers.
+*   [lru_trace.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/lru_mlock_union/lru_mlock_hw.c): Inspecting `page->lru` pointers.
 *   **OBSERVATION**:
     *   Standard pages: `lru.next` and `lru.prev` point to other pages.
     *   Mlocked pages: `lru` pointers are NULL or point to special "Unevictable" list.

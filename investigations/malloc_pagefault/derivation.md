@@ -29,7 +29,7 @@
 
 ## 3. Experiment: Proof of Laziness
 
-*   [malloc_user.c](./malloc_user.c): Program to allocate 1GB and measure RAM usage before/after writing.
+*   [malloc_user.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/malloc_pagefault/malloc_user.c): Program to allocate 1GB and measure RAM usage before/after writing.
 *   **OBSERVATION**:
     *   `malloc(1GB)` -> RES (Resident Memory) = 0 KB.
     *   `memset(ptr, 0, 1GB)` -> RES rises to 1GB.

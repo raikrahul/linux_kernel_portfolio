@@ -44,7 +44,7 @@ We can derive the location of any page's metadata using simple pointer arithmeti
 
 We wrote a module that takes the kernel address of its own code and finds the corresponding metadata.
 
-*   [page_driver.c](./page_driver.c): Module using `virt_to_page()`.
+*   [page_labs.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/struct_page_driver/page_labs.c): Module using `virt_to_page()`.
 *   **TRACE**:
     1.  Variable `x` at `0xffff...`.
     2.  Subtract `PAGE_OFFSET` → Physical Address.

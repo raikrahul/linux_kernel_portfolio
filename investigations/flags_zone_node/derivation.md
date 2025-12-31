@@ -35,7 +35,7 @@ zone_id = (page->flags >> ZONES_PGSHIFT) & ZONES_MASK
 
 ## 3. Experiment: Decoding Flags
 
-*   [flags_zone_node.c](./flags_zone_node.c): Kernel module to allocate pages and print their raw flags.
+*   [flags_zone_node.c](https://github.com/raikrahul/linux_kernel_portfolio/blob/main/investigations/flags_zone_node/flags_zone_node.c): Kernel module to allocate pages and print their raw flags.
 *   **OBSERVATION**:
     *   Allocated Page PFN: `0x1000` (DMA Zone).
     *   Flags: `0x...`
