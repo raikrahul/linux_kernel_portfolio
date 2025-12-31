@@ -1,0 +1,33 @@
+=== MAPPING FIELD DECODER DEMO ===
+PID: 246443
+
+[1] FILE-BACKED MAPPING:
+    VA: 0x73cb0b607000
+    Action: mmap('temp_map_file', SHARED) + write
+
+[2] ANONYMOUS MAPPING:
+    VA: 0x73cb0b606000
+    Action: mmap(ANON, PRIVATE) + write
+
+[3] KSM CANDIDATES CREATED:
+    VA1: 0x73cb0b605000
+    VA2: 0x73cb0b604000
+    Action: mmap(ANON) + memset + madvise(MERGEABLE)
+    Status: Waiting 5 seconds for KSM daemon...
+
+=== READY FOR KERNEL INSPECTION (NORMAL) ===
+Runs these commands manually:
+  sudo insmod mapping_hw.ko target_pid=246443 target_va=0x73cb0b607000 (FILE)
+  sudo insmod mapping_hw.ko target_pid=246443 target_va=0x73cb0b606000 (ANON)
+  sudo insmod mapping_hw.ko target_pid=246443 target_va=0x73cb0b605000 (KSM1)
+
+[4] HUGE PAGE (COMPOUND) CREATED:
+    VA Head:   0x73cb0ae00000
+    VA Tail 1: 0x73cb0ae01000
+    Action: mmap(4MB) + align + madvise(HUGE) + write
+
+=== READY FOR KERNEL INSPECTION (TAIL) ===
+  sudo insmod mapping_hw.ko target_pid=246443 target_va=0x73cb0ae00000 (HEAD)
+  sudo insmod mapping_hw.ko target_pid=246443 target_va=0x73cb0ae01000 (TAIL 1)
+
+Press ENTER to clean up and exit...

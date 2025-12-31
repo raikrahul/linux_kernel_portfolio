@@ -1,0 +1,75 @@
+#include <linux/module.h>
+#include <linux/export-internal.h>
+#include <linux/compiler.h>
+
+MODULE_INFO(name, KBUILD_MODNAME);
+
+__visible struct module __this_module
+__section(".gnu.linkonce.this_module") = {
+	.name = KBUILD_MODNAME,
+	.init = init_module,
+#ifdef CONFIG_MODULE_UNLOAD
+	.exit = cleanup_module,
+#endif
+	.arch = MODULE_ARCH_INIT,
+};
+
+
+
+static const struct modversion_info ____versions[]
+__used __section("__versions") = {
+	{ 0xd272d446, "__fentry__" },
+	{ 0xa009a8d7, "find_get_pid" },
+	{ 0x774b89a0, "pid_task" },
+	{ 0xfd581a88, "get_user_pages_remote" },
+	{ 0x44decd6f, "hugetlb_optimize_vmemmap_key" },
+	{ 0x44decd6f, "devmap_managed_key" },
+	{ 0x3009e428, "__put_devmap_managed_folio_refs" },
+	{ 0x23b336c6, "__folio_put" },
+	{ 0xd272d446, "__stack_chk_fail" },
+	{ 0xc2614bbe, "param_ops_ulong" },
+	{ 0xc2614bbe, "param_ops_int" },
+	{ 0xe8213e80, "_printk" },
+	{ 0xd272d446, "__x86_return_thunk" },
+	{ 0xba157484, "module_layout" },
+};
+
+static const u32 ____version_ext_crcs[]
+__used __section("__version_ext_crcs") = {
+	0xd272d446,
+	0xa009a8d7,
+	0x774b89a0,
+	0xfd581a88,
+	0x44decd6f,
+	0x44decd6f,
+	0x3009e428,
+	0x23b336c6,
+	0xd272d446,
+	0xc2614bbe,
+	0xc2614bbe,
+	0xe8213e80,
+	0xd272d446,
+	0xba157484,
+};
+static const char ____version_ext_names[]
+__used __section("__version_ext_names") =
+	"__fentry__\0"
+	"find_get_pid\0"
+	"pid_task\0"
+	"get_user_pages_remote\0"
+	"hugetlb_optimize_vmemmap_key\0"
+	"devmap_managed_key\0"
+	"__put_devmap_managed_folio_refs\0"
+	"__folio_put\0"
+	"__stack_chk_fail\0"
+	"param_ops_ulong\0"
+	"param_ops_int\0"
+	"_printk\0"
+	"__x86_return_thunk\0"
+	"module_layout\0"
+;
+
+MODULE_INFO(depends, "");
+
+
+MODULE_INFO(srcversion, "550A31354E2FFE36CFB11C7");
