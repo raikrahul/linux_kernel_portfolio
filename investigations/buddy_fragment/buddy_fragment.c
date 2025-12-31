@@ -50,17 +50,18 @@ static int __init buddy_frag_init(void) {
    * 1. WHAT: Request for 8 contiguous physical pages.
    *    - Size = 8 * 4096 = 32,768 bytes.
    * 2. WHY: To create a high-order contiguous block.
-   *    - Fragmentation checks if 32KB chunks exist.
    * 3. WHERE: Zone Normal (Start PFN > 1,048,576).
-   *    - Specific Range Example: PFN 0x100000 to PFN 0x100007.
    * 4. WHO: Buddy Allocator (mm/page_alloc.c).
-   * 5. WHEN: Immediate (if FreeList[3] not empty) OR After Reclaim (ms
-   * latency).
-   * 6. WITHOUT: If Order 3 list empty AND Order > 3 lists empty -> Returns
-   * NULL.
-   *    - Result: -ENOMEM (-12).
-   * 7. WHICH: Order 3 Free List.
-   *    - Index 3 in zone->free_area[].
+   * 5. WHEN: Immediate.
+   * 6. WITHOUT: NULL (-ENOMEM).
+   * 7. CALCULATION: (Harder Example - Punishment)
+   *    - Target: Order 3 (8 Pages).
+   *    - Candidate PFN: 0x1234567.
+   *    - Binary: ...0001 0010 0011 0100 0101 0110 0111
+   *    - Alignment Check: Is PFN % 8 == 0?
+   *    - Last 3 bits: 111 (7). 7 != 0.
+   *    - Result: PFN 0x1234567 CANNOT be start of Order 3.
+   *    - Nearest Valid Aligned PFN: 0x1234560 (Last bits 000).
    */
   order3_page = alloc_pages(GFP_KERNEL, 3);
 
@@ -73,17 +74,19 @@ static int __init buddy_frag_init(void) {
    * STEP 2: page_to_pfn(order3_page)
    * --------------------------------
    * 1. WHAT: Pointer arithmetic to derive index.
-   *    - Input: 0xffffea0000001000 (vmemmap address).
-   *    - Base:  0xffffea0000000000 (vmemmap base).
-   *    - Struct Size: 64 bytes.
-   * 2. WHY: Kernel identifies pages by integer index (PFN), not pointer.
+   * 2. WHY: Kernel identifies pages by integer index (PFN).
    * 3. WHERE: Array 'vmemmap'.
-   * 4. WHO: Compiler/CPU ALU.
-   * 5. WHEN: < 1 ns (Register calculation).
-   * 6. WITHOUT: We cannot know the Physical Address.
-   *    - PhysAddr = PFN * 4096.
-   * 7. WHICH: The index corresponding to the physical frame.
-   *    - Calc: (Ptr - Base) >> 6 (div 64).
+   * 4. WHO: CPU ALU.
+   * 5. WHEN: < 1 ns.
+   * 6. WITHOUT: Cannot calculate PhysAddr.
+   * 7. CALCULATION: (Middle Scale)
+   *    - Input Ptr: 0xffffea00000f4240 (Random high address).
+   *    - Base:      0xffffea0000000000.
+   *    - Diff:      0x00000000000f4240 = 1,000,000 bytes.
+   *    - Struct Size: 64 bytes.
+   *    - Index: 1,000,000 / 64 = 15,625.
+   *    - PFN: 15,625.
+   *    - Phys Addr: 15,625 * 4096 = 64,000,000 (64MB).
    */
   pfn = page_to_pfn(order3_page);
 
@@ -94,16 +97,17 @@ static int __init buddy_frag_init(void) {
     /*
      * STEP 3: alloc_page(GFP_KERNEL) [In Loop]
      * ----------------------------------------
-     * 1. WHAT: Request for 1 physical page (Order 0).
-     *    - Size = 4096 bytes.
-     * 2. WHY: To fragment memory by taking small chunks.
-     * 3. WHERE: Any free PFN in Zone Normal.
-     *    - e.g., PFN 200, then PFN 500, then PFN 300.
-     * 4. WHO: Per-CPU Pageset (PCP) Allocator.
-     *    - Hot/Cold optimization layer before Buddy.
-     * 5. WHEN: < 100 cycles (Fast path).
-     * 6. WITHOUT: Loop fails, goto cleanup.
-     * 7. WHICH: Order 0 Free List (or PCP list).
+     * 1. WHAT: Request for 1 physical page.
+     * 2. WHY: Fragment memory.
+     * 3. WHERE: Zone Normal.
+     * 4. WHO: PCP Allocator.
+     * 5. WHEN: Fast path.
+     * 6. WITHOUT: Loop fails.
+     * 7. CALCULATION: (Fractional/Edge)
+     *    - Total System Pages: 2,000,000.
+     *    - Allocating: 1.
+     *    - Ratio: 1 / 2,000,000 = 0.00005% of RAM.
+     *    - Impact: Negligible on capacity, high on fragmentation logic.
      */
     pages[i] = alloc_page(GFP_KERNEL);
     if (!pages[i]) {
@@ -120,14 +124,21 @@ static int __init buddy_frag_init(void) {
    * STEP 4: Buddy Verification Loop
    * -------------------------------
    * 1. WHAT: XOR Calculation.
-   *    - Formula: Buddy = PFN ^ (1 << 0).
-   * 2. WHY: To find the hypothetical merge candidate.
-   *    - If PFN=100, Buddy=101. If PFN=101, Buddy=100.
+   * 2. WHY: Find merge candidate.
    * 3. WHERE: CPU Registers.
-   * 4. WHO: CPU ALU (XOR instruction).
+   * 4. WHO: ALU.
    * 5. WHEN: Immediate.
-   * 6. WITHOUT: The allocator cannot merge pages.
-   * 7. WHICH: The specific PFN that completes the pair.
+   * 6. WITHOUT: No merging.
+   * 7. CALCULATION: (Bit Pattern Punishment)
+   *    - PFN A: 0xABC  (1010 1011 1100).
+   *    - Order 0 Bit: ......^.......1.
+   *    - XOR Result:    1010 1011 1101 (0xABD).
+   *    - PFN B: 0xABD  (1010 1011 1101).
+   *    - Order 0 Bit: ......^.......1.
+   *    - XOR Result:    1010 1011 1100 (0xABC).
+   *    - CONCLUSION: 0xABC and 0xABD are buddies.
+   *    - TRICK: 0xABD and 0xABE are NOT buddies (0xD=1101, 0xE=1110. XOR=0011
+   * -> Diff bit 0 AND 1).
    */
   for (i = 0; i < 4; i++) {
     unsigned long cur = page_to_pfn(pages[i]);
