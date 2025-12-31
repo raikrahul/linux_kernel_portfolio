@@ -1,43 +1,35 @@
-# Refcount Exercise Worksheet
-
-## AXIOMS (SOURCES)
-01. Bit=0_or_1→SOURCE:hardware_transistor_state
-02. Byte=8_bits→SOURCE:x86_architecture_definition
-03. Page=4096_bytes=2^12=0x1000→SOURCE:x86_MMU_page_size
-04. RAM=Array[Byte]→SOURCE:physical_memory_model
-05. PFN=PhysAddr>>12=PhysAddr/4096→SOURCE:kernel_mm_convention
-06. struct_page=64_bytes→SOURCE:`pahole -C page vmlinux`
-07. vmemmap=0xffffea0000000000→SOURCE:arch/x86/include/asm/page_64_types.h
-08. _refcount=atomic_t_at_offset→SOURCE:include/linux/mm_types.h
-
-## DERIVATION CHAIN (USER FILLS)
-09. FILL:offset_of_refcount_in_struct_page=___bytes→RUN:grep_-n_"_refcount"_/usr/src/linux-headers-6.14.0-37-generic/include/linux/mm_types.h
-10. FILL:after_alloc_page()→_refcount=___→WHY:set_page_refcounted(page)_sets_it_to_1
-11. FILL:after_get_page()→_refcount=___→WHY:atomic_inc(&page->_refcount)→1+1=2
-12. FILL:after_first_put_page()→_refcount=___→WHY:atomic_dec_and_test→2-1=1→test:1==0?→✗→page_NOT_freed
-13. FILL:after_second_put_page()→_refcount=___→WHY:atomic_dec_and_test→1-1=0→test:0==0?→✓→__free_page()_called
-14. VERIFY_LINE_10:dmesg|grep_"after_get"→ref=2?→✓_or_✗
-15. VERIFY_LINE_12:dmesg|grep_"after_put1"→ref=1?→✓_or_✗
-16. VERIFY_LINE_13:dmesg|grep_"after_put2"→"page_freed"?→✓_or_✗
-
-## FAILURE PREDICTIONS
-17. F1:If_get_page_called_twice→_refcount=3→need_three_put_page_to_free→FILL:what_happens_if_only_two_put_page?
-18. F2:If_put_page_called_on_freed_page→_refcount=0→put_page→0-1=-1→VM_BUG_ON→FILL:what_message_in_dmesg?
-19. F3:If_alloc_page_returns_NULL→FILL:what_is_errno?→FILL:why_would_it_fail?
-
-## CALCULATIONS (USER DOES BY HAND)
-20. CALC:page=0xffffea0007a21f40→vmemmap=0xffffea0000000000→diff=0xffffea0007a21f40-0xffffea0000000000=___
-21. CALC:diff_from_20=___→sizeof_page=64→pfn=diff/64=___
-22. CALC:pfn_from_21=___→phys_addr=pfn*4096=___
-23. CALC:phys_addr_from_22=___→zone=???→DERIVE:if_pfn<4096→DMA,elif_pfn<1048576→DMA32,else→Normal
-
-## VIOLATION CHECK
-24. NEW_THINGS_INTRODUCED_WITHOUT_DERIVATION:___
-25. IF_LINE_24_NOT_EMPTY→WORKSHEET_REJECTED
-
-## COMMANDS TO RUN
-26. make
-27. sudo insmod refcount_hw.ko
-28. sudo dmesg | tail -20
-29. sudo rmmod refcount_hw
-30. gcc refcount_user.c -o refcount_user && ./refcount_user
+01. AXIOM:transistor=ON(1)_or_OFF(0)→this_is_a_bit→SOURCE:physics/electronics→VERIFY:no_third_state_exists
+02. USING_01:8_bits_grouped=1_byte→CALCULATE:2^8=256_possible_values_per_byte→VERIFY:0x00_to_0xFF=256_values✓
+03. USING_02:byte_has_address→address_0=first_byte→address_1=second_byte→DRAW:[0x0|0x1|0x2|0x3|...]→each_box=1_byte
+04. USING_03:RAM=array_of_bytes→your_machine:MemTotal=15776272_kB→CALCULATE:15776272×1024=16154902528_bytes→VERIFY:cat_/proc/meminfo|grep_MemTotal
+05. USING_04:16154902528_bytes→last_address=16154902527=0x3C3CFFFFF→DRAW:[0x0|...|0x3C3CFFFFF]→this_is_physical_RAM
+06. USING_02,03:getconf_PAGE_SIZE=4096→CALCULATE:4096=2^12=0x1000→this_is_PAGE_SIZE→SOURCE:your_machine_live_data
+07. USING_05,06:16154902528÷4096=3944069.125→floor=3944069_pages→CALCULATE:3944069×4096=16154906624_bytes→VERIFY:close_to_MemTotal✓
+08. USING_06,07:PFN=Page_Frame_Number=index_into_page_array→PFN_0=bytes[0..4095]→PFN_1=bytes[4096..8191]→CALCULATE:PFN×4096=start_address→VERIFY:PFN_1×4096=4096=0x1000✓
+09. USING_08:your_machine_has_PFN_range=[0..3944068]→max_PFN=3944068→CALCULATE:3944068×4096=16154902528→matches_05✓
+10. USING_09:kernel_needs_metadata_per_page→WHY:track_refcount,flags,mapping→PROBLEM:where_to_store_metadata?→SOLUTION:struct_page_array
+11. USING_10:grep_-n_"_refcount"_/usr/src/linux-headers-6.14.0-37-generic/include/linux/mm_types.h→result:line_181:atomic_t__refcount→SOURCE:your_machine_headers
+12. USING_11:atomic_t=4_bytes→offset_of_refcount_in_struct_page→CALCULATE:you_must_run_pahole_or_grep_to_find_exact_offset→FILL:offset=___bytes
+13. USING_10,12:sizeof(struct_page)≈64_bytes→CALCULATE:3944069_pages×64_bytes=252420416_bytes=240.6MB→this_is_vmemmap_size
+14. USING_13:kernel_places_struct_page_array_at_fixed_virtual_address→grep_vmemmap:/usr/src/linux-headers-6.14.0-37-generic/arch/x86/include/asm/pgtable_64_types.h→line_136:VMEMMAP_START=vmemmap_base
+15. USING_14:on_x86_64_typical_vmemmap_base=0xffffea0000000000→FILL:run_sudo_cat_/proc/kallsyms|grep_vmemmap_base_to_verify=___
+16. USING_08,15:page_to_pfn(page_ptr)=(page_ptr-vmemmap_base)÷64→EXAMPLE:if_page_ptr=0xffffea0007a21f40→diff=0x7a21f40=128065344→CALCULATE:128065344÷64=2001021→∴PFN=2001021
+17. USING_16:pfn_to_phys(pfn)=pfn×4096→CALCULATE:2001021×4096→step1:2001021×4000=8004084000→step2:2001021×96=192098016→step3:8004084000+192098016=8196182016→VERIFY:8196182016=0x1E887D000✓
+18. USING_06,17:zone_boundary_derivation→DMA_zone:PFN<4096→DMA32_zone:4096≤PFN<1048576→Normal_zone:PFN≥1048576→CALCULATE:1048576×4096=4294967296=4GB=32-bit_limit
+19. USING_18:PFN=2001021→2001021<4096?→✗→2001021<1048576?→✗→2001021≥1048576?→✓→∴zone=Normal
+20. USING_09,18:cat_/proc/buddyinfo→Node_0_zone_DMA:0,1,0,0,0,0,0,0,1,2,2→Node_0_zone_DMA32:9047,10727...→Node_0_zone_Normal:11958,5941...→these_are_free_blocks_per_order
+21. USING_20:what_is_order?→order_N=2^N_contiguous_pages→order_0=1_page=4096_bytes→order_1=2_pages=8192_bytes→order_10=1024_pages=4194304_bytes=4MB
+22. USING_21:buddyinfo_format=[order_0_count,order_1_count,...,order_10_count]→Normal_zone:[11958,5941,2689,667,586,200,68,23,12,0,0]→CALCULATE:total_free_order_0_pages=11958→total_free_bytes_order_0=11958×4096=48987648=46.7MB
+23. USING_11:_refcount_purpose→when_alloc_page()→kernel_sets_refcount=1→when_get_page()→refcount++→when_put_page()→refcount--→when_refcount=0→page_freed
+24. USING_23:DRAW[alloc_page→refcount=1]→DRAW[get_page→refcount=1+1=2]→DRAW[put_page→refcount=2-1=1]→DRAW[put_page→refcount=1-1=0→free]
+25. USING_24:FAILURE_IF:put_page_on_freed_page→refcount=0-1=-1→VM_BUG_ON_PAGE(page_ref_count(page)<=0,page)→kernel_warns_or_panics
+26. TODO_USER:CALCULATE_BY_HAND:if_page_ptr=0xffffea0000500000→vmemmap=0xffffea0000000000→diff=___→pfn=diff÷64=___→phys=pfn×4096=___→zone=___
+27. TODO_USER:CALCULATE_BY_HAND:if_pfn=1000000→phys=pfn×4096=___→1000000<1048576?→___→∴zone=___
+28. TODO_USER:RUN:cat_/proc/buddyinfo→sum_all_Normal_zone_numbers→multiply_each_by_2^order→total_free_pages=___
+29. TODO_USER:RUN:sudo_insmod_refcount_hw.ko→dmesg|tail_-10→observe_refcount_values→FILL:after_alloc=___,after_get=___,after_put1=___
+30. FAILURE_PREDICTIONS_AT_END:
+31. F1:confusion_pfn_vs_phys→pfn=index→phys=pfn×4096→TRAP:forgetting_×4096
+32. F2:confusion_vmemmap_vs_phys→vmemmap=virtual_address_of_struct_page_array→phys=actual_RAM_location→TRAP:mixing_address_types
+33. F3:refcount_underflow→calling_put_page_too_many_times→refcount=-1→BUG
+34. F4:zone_boundary_mistake→DMA32_ends_at_PFN_1048575_not_1048576→off_by_one
+35. VIOLATION_CHECK:NEW_THINGS_INTRODUCED_WITHOUT_DERIVATION:___→IF_NOT_EMPTY→WORKSHEET_REJECTED
