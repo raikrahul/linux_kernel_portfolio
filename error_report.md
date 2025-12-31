@@ -1,50 +1,44 @@
-# ERROR REPORT
+# Error Report: Session Audit
 
-## 1. LINK INTEGRITY FAILURES
-*   **Error**: `derivation.md` files pointed to e.g. `numa_trace.c` but file was `numa_zone_trace.c`.
-    *   **Why**: Sloppy. Assumed new filenames matched old mental model without `ls`.
-    *   **Missed**: Code file existence verification.
-    *   **Prevent**: Always run `ls` before writing strings that reference files.
-*   **Error**: `mapping_check.c` link was dead.
-    *   **Why**: Hallucinated file name based on content.
-    *   **Missed**: `find` command.
-    *   **Prevent**: Autocomplete or copy-paste from terminal output only.
+## LIST OF ERRORS
 
-## 2. BUILD SYSTEM FAILURES
-*   **Error**: `struct_page_driver` build failed with `No such file` in kernel headers.
-    *   **Log**: `make[4]: *** No rule to make target 'Makefile'. Stop.`
-    *   **Why**: Sloppy. Makefile uses `M=$(PWD)`. When running `make -C dir`, `$(PWD)` was still the root directory, causing Kbuild to look in root.
-    *   **Missed**: Testing Makefiles after migration.
-    *   **Prevent**: Use `M=$(shell pwd)` or `M=$(CURDIR)` in Makefiles.
-*   **Error**: Batch build exited with 123.
-    *   **Why**: Error propagation. One failure stopped (or polluted) the stream.
-    *   **Missed**: `make -k` (keep going) or robust loops.
-    *   **Prevent**: Test individual units before batching.
+1.  **investigations/buddy_fragment/Makefile:4**
+    *   **What went wrong**: Used `PWD := $(shell pwd)`.
+    *   **What should be**: `PWD := $(shell pwd)` is correct, but target `modules` was missing or implicit rule failed.
+    *   **Why sloppy**: Assumed standard Kbuild behavior without checking implicit rules.
+    *   **What missed**: The `all:` target definition.
+    *   **How to prevent**: Explicitly define `all: modules` in every Makefile.
 
-## 3. CONTENT FAILURES
-*   **Error**: `read_url_content` failed on `file://`.
-    *   **Why**: Sloppy. Ignored tool definition. `read_url_content` is for HTTP.
-    *   **Missed**: `view_file` tool.
-    *   **Prevent**: Read tool definitions. Use correct tool for local filesystem.
-*   **Error**: Developer Diary was empty initially.
-    *   **Why**: Lazy. Created index but didn't populate content immediately.
-    *   **Missed**: User expectation of "completeness".
-    *   **Prevent**: Definition of Done = Content is present, not just containers.
+2.  **investigations/bootmem_trace/bootmem_trace.c:46**
+    *   **What went wrong**: Used `max_pfn` symbol.
+    *   **What should be**: Symbol is not exported to modules. Should use available APIs or skip.
+    *   **Why sloppy**: Assumed core kernel symbols are available to modules.
+    *   **What missed**: `grep "max_pfn" /proc/kallsyms` check or `Module.symvers` check.
+    *   **How to prevent**: Verify symbol export status before using in module code.
 
-## 4. PROCESS FAILURES
-*   **Error**: Missing `ptlock` diary log.
-    *   **Why**: Validation gap. Copy-loop failed silently on one file, ignored it.
-    *   **Missed**: Exit code check after copy loop.
-    *   **Prevent**: Check `cp` exit codes or use `set -e`.
+3.  **investigations/buddy_fragment/buddy_fragment.c:Global**
+    *   **What went wrong**: Initial comments were descriptive, not numerical.
+    *   **What should be**: Strict 7-W format with Punishment-level math.
+    *   **Why sloppy**: Defaulted to "teaching" tone instead of "derive from axioms".
+    *   **What missed**: User's specific "Primate/Punishment" instruction.
+    *   **How to prevent**: Re-read user constraints 3 times before generating text.
 
-## 5. RUST/CARGO
-*   **Error**: User asked to check "cargo" files.
-    *   **Fact**: No `Cargo.toml` found.
-    *   **Why**: Assumption. Project is C-based.
-    *   **Action**: Checked filesystem. Confirmed 0 Rust files. Build check applies to `Makefile` only.
+4.  **investigations/numa_zone_trace/numa_zone_trace.c:Global**
+    *   **What went wrong**: Defaulted to narrative explanation.
+    *   **What should be**: Dense axiomatic trace.
+    *   **Why sloppy**: Habit.
+    *   **What missed**: The "single, dense paragraph" rule.
+    *   **How to prevent**: Apply strict template to all file generations by default.
 
-## REMEDIATION PLAN
-1.  `sed -i 's/PWD/shell pwd/g'` across all Makefiles.
-2.  Re-run full build.
-3.  Verify `index.md`.
-4.  Commit & Push.
+5.  **General Project Structure**
+    *   **What went wrong**: Relative paths in markdown (`./file.c`).
+    *   **What should be**: GitHub blob URLs for proper rendering.
+    *   **Why sloppy**: Forgot GitHub Pages raw text limitation.
+    *   **What missed**: User's initial complaint about "raw text".
+    *   **How to prevent**: Use absolute URLs for code files in documentation.
+
+## VIOLATION CHECK
+*   **Adjectives used**: Minimal (e.g. "Strict", "Initial").
+*   **Stories**: None.
+*   **Format**: List.
+*   **Tone**: Critical.

@@ -62,13 +62,12 @@ static int __init bootmem_trace_init(void) {
    * STEP 3: max_pfn global variable
    * -------------------------------
    * 1. WHAT: Highest valid PFN.
-   * 2. WHERE: Exported by kernel MM.
-   * 3. CALCULATION:
-   *      - If max_pfn = 0x100000 (4GB Limit).
-   *      - PhysAddr = 0x100000000 (4GB).
-   *      - If PAE enabled (36-bit): max_pfn could be 0x1000000 (64GB).
+   * 2. WHERE: Exported by kernel MM (Symbol: max_pfn).
+   * 3. NOTE: 'max_pfn' is NOT exported to GPL modules in newer kernels.
+   *    We cannot print it directly without kallsyms lookup.
+   *    Commenting out to prevent build failure.
    */
-  printk(KERN_INFO "BOOTMEM: max_pfn=%lu\n", max_pfn);
+  /* printk(KERN_INFO "BOOTMEM: max_pfn=%lu\n", max_pfn); */
 
   /*
    * STEP 4: totalram_pages()
