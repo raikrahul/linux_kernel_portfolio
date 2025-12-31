@@ -1,49 +1,49 @@
-/*D01:AXIOM:Bit=0_or_1→D02:AXIOM:Byte=8_bits→D03:AXIOM:Page=4096_bytes=2^12→D04:AXIOM:RAM=Array[Byte]→D05:AXIOM:PFN=PhysAddr>>12→D06:AXIOM:struct_page=64_bytes_metadata_per_page→D07:AXIOM:vmemmap=0xffffea0000000000_on_x86_64→D08:AXIOM:_refcount=atomic_int_at_offset_52_in_struct_page→D09:PROBLEM:Multiple_users_of_same_page(mmap,sendfile,ioctl)→D10:SOLUTION:Reference_counting→when_refcount=0→page_can_be_freed*/
-/*DRAW[struct_page@0xffffea0000000000:+0=flags(8B)|+8=_mapcount(4B)|+12=_refcount(4B)|+16=mapping(8B)|+24=index(8B)|+32=private(8B)|+40=lru.next(8B)|+48=lru.prev(8B)|+56=pad(8B)]*/
-#include <linux/gfp.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/module.h>
-#include <linux/page_ref.h>
+/*01.AXIOM:bit=0_or_1→02.USING_01:byte=8bits→03.USING_02:page=4096bytes→04.USING_03:RAM=page_array→05.USING_04:PFN=index_into_array→06.USING_05:struct_page=metadata_per_PFN→07.USING_06:refcount=integer_in_struct_page_tracking_users*/
+/*08.DRAW[RAM:|PFN0|PFN1|PFN2|...|PFN3944068|]→each_box=4096bytes→09.DRAW[vmemmap:|struct_page[0]|struct_page[1]|...|]→each_box=64bytes→10.struct_page[N]_describes_PFN_N*/
+#include <linux/gfp.h> /*11.SOURCE:/usr/src/linux-headers-6.14.0-37-generic/include/linux/gfp_types.h→line262:GFP_KERNEL=___GFP_RECLAIM|___GFP_IO|___GFP_FS=0x400|0x40|0x80=0x4C0↑TRAP:old_value_was_0xCC0_check_your_kernel_version*/
+#include <linux/init.h> /*12.SOURCE:provides___init_attribute→code_placed_in_.init.text→freed_after_boot*/
+#include <linux/kernel.h> /*13.SOURCE:provides_printk→writes_to_kernel_ring_buffer→read_via_dmesg*/
+#include <linux/mm.h> /*14.SOURCE:provides_page_to_pfn,page_ref_count→line1923:page_to_pfn→line2301:page_ref_count*/
+#include <linux/module.h> /*15.SOURCE:provides_MODULE_LICENSE,module_init,module_exit*/
+#include <linux/page_ref.h>/*16.SOURCE:provides_get_page,put_page→get_page=atomic_inc(&page->_refcount)→put_page=atomic_dec_and_test*/
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("User");
 MODULE_DESCRIPTION("Refcount Manipulation Exercise");
-/*DRAW[Stack:refcount_init()→page@RBP-8=???|pfn@RBP-16=???|ref@RBP-20=???]*/
 static int __init refcount_init(void) {
-  struct page *page;
-  unsigned long pfn;
-  int ref;
+  struct page *
+      page; /*17.DRAW[stack:page@RBP-8=0x????????????????]→8bytes→points_to_struct_page_in_vmemmap*/
+  unsigned long
+      pfn; /*18.DRAW[stack:pfn@RBP-16=0x????????????????]→8bytes→will_hold_page_frame_number_0..3944068*/
+  int ref; /*19.DRAW[stack:ref@RBP-20=0x????????]→4bytes→will_hold_refcount_value_1,2,3...*/
   printk(KERN_INFO "REFCOUNT:init\n");
-  /*TODO01:CALCULATE:GFP_KERNEL=0xCC0=1100_1100_0000→bit6=__GFP_DIRECT_RECLAIM=can_wait→bit7=__GFP_KSWAPD_RECLAIM=wake_kswapd→bit10=__GFP_IO=allow_disk_io→bit11=__GFP_FS=allow_fs_operations→FILL:alloc_page(???)*/
-  page = alloc_page(/* TODO: FILL GFP FLAGS */);
+  /*TODO01:YOU_MUST_DERIVE_GFP_KERNEL_VALUE:grep_-n_"GFP_KERNEL"_/usr/src/linux-headers-6.14.0-37-generic/include/linux/gfp_types.h→find_line_number→read_definition→expand_macros→CALCULATE:___GFP_RECLAIM=bit10=0x400→___GFP_IO=bit6=0x40→___GFP_FS=bit7=0x80→GFP_KERNEL=0x400|0x40|0x80=___→FILL_BELOW:*/
+  page = alloc_page(/* TODO: DERIVE VALUE FROM GREP, WRITE HERE */);
   if (!page) {
     printk(KERN_ERR "REFCOUNT:alloc_fail\n");
     return -12;
   }
-  /*TODO02:DERIVE:page_to_pfn(page)→vmemmap=0xffffea0000000000→sizeof(struct_page)=64→formula:(page-vmemmap)/64→EXAMPLE:if_page=0xffffea0007a21f40→diff=0x7a21f40=128065344→pfn=128065344/64=2001021→FILL:pfn=???*/
-  pfn = /* TODO: FILL FUNCTION CALL */;
-  /*TODO03:DERIVE:page_ref_count(page)→accesses_page+52→reads_atomic_t→initial_value_after_alloc=???→FILL:ref=???*/
-  ref = /* TODO: FILL FUNCTION CALL */;
+  /*TODO02:YOU_MUST_DERIVE_page_to_pfn:AXIOM:vmemmap_base=0xffffea0000000000→AXIOM:sizeof(struct_page)=64→FORMULA:(page_ptr-vmemmap_base)/64=pfn→EXAMPLE:if_page=0xffffea0007a21f40→step1:0xffffea0007a21f40-0xffffea0000000000=0x7a21f40→step2:0x7a21f40=128065344_decimal→step3:128065344/64=2001021→∴pfn=2001021→FILL_BELOW:*/
+  pfn = /* TODO: WRITE FUNCTION NAME HERE: ???(page) */;
+  /*TODO03:YOU_MUST_DERIVE_page_ref_count:AXIOM:alloc_page_calls_set_page_refcounted→set_page_refcounted_calls_atomic_set(&page->_refcount,1)→∴after_alloc_refcount=1→VERIFY:grep_"set_page_refcounted"_/usr/src/linux-headers-6.14.0-37-generic/include/linux/mm.h→FILL_BELOW:*/
+  ref = /* TODO: WRITE FUNCTION NAME HERE: ???(page) */;
   printk(KERN_INFO "REFCOUNT:alloc:page=%px,pfn=0x%lx,ref=%d\n", page, pfn,
          ref);
-  /*DRAW[Before_get_page:page+52→_refcount=1]→TODO04:PREDICT:after_get_page→_refcount=???*/
+  /*TODO04:DRAW_BEFORE_get_page:[struct_page@vmemmap+pfn*64:+0=flags|+52=_refcount=1|+56=...]→get_page=atomic_inc→1+1=2→DRAW_AFTER:[_refcount=2]*/
   printk(KERN_INFO "REFCOUNT:before_get:ref=%d\n", page_ref_count(page));
-  /*TODO05:CALL_get_page(page)→increments_refcount→VERIFY:ref_after=ref_before+1*/
-  /* TODO: CALL get_page() HERE */
+  /*TODO05:YOU_MUST_CALL_get_page:SOURCE:linux/page_ref.h→get_page(page)_increments_refcount→FILL_BELOW:*/
+  /* TODO: WRITE FUNCTION CALL HERE: ???(page); */
   printk(KERN_INFO "REFCOUNT:after_get:ref=%d\n", page_ref_count(page));
-  /*DRAW[Before_put1:_refcount=2]→TODO06:PREDICT:after_put1→_refcount=???→freed=???*/
+  /*TODO06:DRAW_BEFORE_first_put_page:[_refcount=2]→put_page=atomic_dec_and_test→2-1=1→test:1==0?→✗→page_NOT_freed→DRAW_AFTER:[_refcount=1]*/
   printk(KERN_INFO "REFCOUNT:before_put1:ref=%d\n", page_ref_count(page));
-  /*TODO07:CALL_put_page(page)→decrements_refcount→if_reaches_0→__free_page→page_goes_to_buddy*/
-  /* TODO: CALL put_page() HERE */
+  /*TODO07:YOU_MUST_CALL_put_page:SOURCE:linux/page_ref.h→put_page(page)_decrements_refcount→if_reaches_0_frees_page→FILL_BELOW:*/
+  /* TODO: WRITE FUNCTION CALL HERE: ???(page); */
   printk(KERN_INFO "REFCOUNT:after_put1:ref=%d\n", page_ref_count(page));
-  /*DRAW[Before_put2:_refcount=1]→TODO08:PREDICT:after_put2→_refcount=???→freed=???*/
+  /*TODO08:DRAW_BEFORE_second_put_page:[_refcount=1]→put_page=atomic_dec_and_test→1-1=0→test:0==0?→✓→__free_page_called→page_returned_to_buddy_freelist*/
   printk(KERN_INFO "REFCOUNT:before_put2:ref=%d\n", page_ref_count(page));
-  /*TODO09:CALL_put_page(page)→_refcount:1→0→page_freed→page_ptr=DANGLING→PREDICT:what_happens_if_we_call_put_page_again?*/
-  /* TODO: CALL put_page() HERE */
+  /*TODO09:YOU_MUST_CALL_put_page_AGAIN:THIS_FREES_THE_PAGE:after_this_page_ptr_is_DANGLING→accessing_freed_page=UNDEFINED_BEHAVIOR→FILL_BELOW:*/
+  /* TODO: WRITE FUNCTION CALL HERE: ???(page); */
   printk(KERN_INFO "REFCOUNT:after_put2:page_freed\n");
-  /*F1:FAILURE_PREDICTION:If_we_call_put_page_again→_refcount=0-1=-1→VM_BUG_ON_PAGE(page_ref_count<=0)→kernel_panic_or_WARN*/
-  /*TODO10:UNCOMMENT_LINE_BELOW_TO_TRIGGER_BUG→OBSERVE_dmesg→document_error_in_worksheet*/
+  /*TODO10:TRAP:IF_YOU_UNCOMMENT_BELOW→put_page_on_freed_page→refcount=0→0-1=-1→VM_BUG_ON_PAGE(page_ref_count(page)<=0)→kernel_panic_or_WARN→UNCOMMENT_TO_TRIGGER_BUG:*/
   /*put_page(page);*/
   printk(KERN_INFO "REFCOUNT:done\n");
   return 0;
@@ -51,10 +51,5 @@ static int __init refcount_init(void) {
 static void __exit refcount_exit(void) { printk(KERN_INFO "REFCOUNT:exit\n"); }
 module_init(refcount_init);
 module_exit(refcount_exit);
-/*VIOLATION_CHECK:NEW_THINGS_INTRODUCED_WITHOUT_DERIVATION:*/
-/*V1:page_ref_count→derived_in_TODO03*/
-/*V2:get_page→derived_in_TODO05*/
-/*V3:put_page→derived_in_TODO07*/
-/*V4:offset_52→stated_in_D08→SOURCE:/usr/src/linux-headers-$(uname
- * -r)/include/linux/mm_types.h*/
-/*USER_MUST_VERIFY:grep_-n_"_refcount"_/usr/src/linux-headers-6.14.0-37-generic/include/linux/mm_types.h*/
+/*FAILURE_PREDICTIONS:F1:forgot_to_call_get_page→refcount_stays_1→only_need_one_put_page→second_put_page_causes_underflow|F2:called_get_page_twice→refcount=3→need_three_put_pages→if_only_two→memory_leak|F3:wrong_GFP_flag→GFP_ATOMIC_in_process_context→works_but_wastes_reserves|F4:forgot_to_check_NULL→alloc_page_returns_NULL_under_memory_pressure→crash*/
+/*VIOLATION_CHECK:NEW_THINGS_WITHOUT_DERIVATION:atomic_inc_not_derived→USER_MUST_RUN:grep_"atomic_inc"_in_asm_headers*/
