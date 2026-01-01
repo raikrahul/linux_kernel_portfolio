@@ -16,7 +16,7 @@ long read_memfree_kb(void) {
   /*TODO03:PARSE:/proc/meminfo→line_format="MemFree:_____12345_kB"→extract_number→FILL:sscanf_format*/
   while (fgets(line, sizeof(line), f)) {
     if (strncmp(line, "MemFree:", 8) == 0) {
-      sscanf(line, /* TODO: FILL FORMAT STRING */, &memfree_kb);
+      sscanf(line, "MemFree: %ld kB", &memfree_kb);
       break;
     }
   }
@@ -27,13 +27,13 @@ int main(void) {
   long before_kb, after_insmod_kb, after_rmmod_kb;
   printf("REFCOUNT_USER:start\n");
   /*TODO04:READ:MemFree_before_insmod→STORE:before_kb*/
-  before_kb = /* TODO: CALL FUNCTION */;
+  before_kb = read_memfree_kb();
   printf("REFCOUNT_USER:MemFree_before=%ld_kB\n", before_kb);
   printf("REFCOUNT_USER:RUN_IN_ANOTHER_TERMINAL:sudo_insmod_refcount_hw.ko\n");
   printf("REFCOUNT_USER:Press_Enter_after_insmod...\n");
   getchar();
   /*TODO05:READ:MemFree_after_insmod→STORE:after_insmod_kb→CALCULATE:delta=before-after*/
-  after_insmod_kb = /* TODO: CALL FUNCTION */;
+  after_insmod_kb = read_memfree_kb();
   printf("REFCOUNT_USER:MemFree_after_insmod=%ld_kB\n", after_insmod_kb);
   /*TODO06:CALCULATE:delta=before_kb-after_insmod_kb→EXPECTED:delta>=4(one_page=4KB)→VERIFY:delta>=4?*/
   long delta_kb = before_kb - after_insmod_kb;
@@ -46,7 +46,7 @@ int main(void) {
   printf("REFCOUNT_USER:Press_Enter_after_rmmod...\n");
   getchar();
   /*TODO09:READ:MemFree_after_rmmod→VERIFY:should_return_to_before_kb*/
-  after_rmmod_kb = /* TODO: CALL FUNCTION */;
+  after_rmmod_kb = read_memfree_kb();
   printf("REFCOUNT_USER:MemFree_after_rmmod=%ld_kB\n", after_rmmod_kb);
   printf("REFCOUNT_USER:FINAL:before=%ld,after_insmod=%ld,after_rmmod=%ld\n",
          before_kb, after_insmod_kb, after_rmmod_kb);

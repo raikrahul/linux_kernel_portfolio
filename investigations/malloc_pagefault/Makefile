@@ -1,15 +1,19 @@
-obj-m := pagefault_trace.o
+# Makefile for MM Exercise and Page Fault Observer
+
+obj-m += mm_exercise_hw.o
+obj-m += pagefault_observer.o
 
 KDIR := /lib/modules/$(shell uname -r)/build
+PWD := $(shell pwd)
 
-all: modules userspace
+all: modules user
 
 modules:
-	make -C $(KDIR) M=$(shell pwd) modules
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
-userspace:
-	gcc -o malloc_user malloc_user.c
+user:
+	gcc -o mm_exercise_user mm_exercise_user.c
 
 clean:
-	make -C $(KDIR) M=$(shell pwd) clean
-	rm -f malloc_user
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	rm -f mm_exercise_user

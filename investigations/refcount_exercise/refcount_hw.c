@@ -9,6 +9,7 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("User");
 MODULE_DESCRIPTION("Refcount Manipulation Exercise");
+static struct page *my_page;
 static int __init refcount_init(void) {
   struct page *
       page; /*17.DRAW[stack:page@RBP-8=0x????????????????]→8bytes→points_to_struct_page_in_vmemmap*/
@@ -22,6 +23,7 @@ static int __init refcount_init(void) {
     printk(KERN_ERR "REFCOUNT:alloc_fail\n");
     return -12;
   }
+  my_page = page;
   /*TODO02:YOU_MUST_DERIVE_page_to_pfn:AXIOM:vmemmap_base=0xffffea0000000000→AXIOM:sizeof(struct_page)=64→FORMULA:(page_ptr-vmemmap_base)/64=pfn→EXAMPLE:if_page=0xffffea0007a21f40→step1:0xffffea0007a21f40-0xffffea0000000000=0x7a21f40→step2:0x7a21f40=128065344_decimal→step3:128065344/64=2001021→∴pfn=2001021→FILL_BELOW:*/
   pfn = /* TODO: WRITE FUNCTION NAME HERE: ???(page) */ page_to_pfn(page);
   /*TODO03:YOU_MUST_DERIVE_page_ref_count:AXIOM:alloc_page_calls_set_page_refcounted→set_page_refcounted_calls_atomic_set(&page->_refcount,1)→∴after_alloc_refcount=1→VERIFY:grep_"set_page_refcounted"_/usr/src/linux-headers-6.14.0-37-generic/include/linux/mm.h→FILL_BELOW:*/
@@ -34,25 +36,20 @@ static int __init refcount_init(void) {
   /* TODO: WRITE FUNCTION CALL HERE: ???(page); */
   get_page(page);
   printk(KERN_INFO "REFCOUNT:after_get:ref=%d\n", page_ref_count(page));
-  /*TODO06:DRAW_BEFORE_first_put_page:[_refcount=2]→put_page=atomic_dec_and_test→2-1=1→test:1==0?→✗→page_NOT_freed→DRAW_AFTER:[_refcount=1]*/
+  /*TODO06:DRAW_BEFORE_first_put_page:[_refcount=2]→put_page=atomic_dec_and_test→2-1=1→test:1==0?→Points_to_Leaked_Page*/
   put_page(page);
-  printk(KERN_INFO "REFCOUNT:before_put1:ref=%d\n", page_ref_count(page));
-  /*TODO07:YOU_MUST_CALL_put_page:SOURCE:linux/page_ref.h→put_page(page)_decrements_refcount→if_reaches_0_frees_page→FILL_BELOW:*/
-  /* TODO: WRITE FUNCTION CALL HERE: ???(page); */
-  put_page(page);
-  printk(KERN_INFO "REFCOUNT:after_put1:ref=%d\n", page_ref_count(page));
-  /*TODO08:DRAW_BEFORE_second_put_page:[_refcount=1]→put_page=atomic_dec_and_test→1-1=0→test:0==0?→✓→__free_page_called→page_returned_to_buddy_freelist*/
-  printk(KERN_INFO "REFCOUNT:before_put2:ref=%d\n", page_ref_count(page));
-  /*TODO09:YOU_MUST_CALL_put_page_AGAIN:THIS_FREES_THE_PAGE:after_this_page_ptr_is_DANGLING→accessing_freed_page=UNDEFINED_BEHAVIOR→FILL_BELOW:*/
-  /* TODO: WRITE FUNCTION CALL HERE: ???(page); */
-  put_page(page);
-  printk(KERN_INFO "REFCOUNT:after_put2:page_freed\n");
-  /*TODO10:TRAP:IF_YOU_UNCOMMENT_BELOW→put_page_on_freed_page→refcount=0→0-1=-1→VM_BUG_ON_PAGE(page_ref_count(page)<=0)→kernel_panic_or_WARN→UNCOMMENT_TO_TRIGGER_BUG:*/
-  /*put_page(page);*/
+  printk(KERN_INFO "REFCOUNT:after_first_put:ref=%d\n", page_ref_count(page));
+  /*FIX: do not free yet so we can measure delta*/
   printk(KERN_INFO "REFCOUNT:done\n");
   return 0;
 }
-static void __exit refcount_exit(void) { printk(KERN_INFO "REFCOUNT:exit\n"); }
+static void __exit refcount_exit(void) {
+  printk(KERN_INFO "REFCOUNT:exit\n");
+  if (my_page) {
+    put_page(my_page);
+    printk(KERN_INFO "REFCOUNT:page_freed_in_exit\n");
+  }
+}
 module_init(refcount_init);
 module_exit(refcount_exit);
 /*FAILURE_PREDICTIONS:F1:forgot_to_call_get_page→refcount_stays_1→only_need_one_put_page→second_put_page_causes_underflow|F2:called_get_page_twice→refcount=3→need_three_put_pages→if_only_two→memory_leak|F3:wrong_GFP_flag→GFP_ATOMIC_in_process_context→works_but_wastes_reserves|F4:forgot_to_check_NULL→alloc_page_returns_NULL_under_memory_pressure→crash*/
