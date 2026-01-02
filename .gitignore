@@ -1,0 +1,15 @@
+# Kernel Module Artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+._*
+.tmp_versions
+modules.order
+Module.symvers
+*.cmd
+
+# Userspace Binaries
+malloc_user
+mm_exercise_user
