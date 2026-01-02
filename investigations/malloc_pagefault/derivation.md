@@ -181,3 +181,224 @@ page → mapping (& ~1) → anon_vma → rb_root → anon_vma_chain → vma
   Name it: Intermediate Struct = `anon_vma` (Anon) or `address_space` (File).
   Conclusion: No magic. Just indirection to save memory.
 
+
+================================================================================
+================================================================================
+:GRAND UNIFICATION TRACE (STRICT AXIOMATIC REVISION) (2026-01-02 11:00)
+================================================================================
+
+:GOAL: Trace integers from User VA -> RAM -> VMA with REAL DATA.
+:CONSTRAINT: Start from primitives (Integers, Pointers). No new words without derivation.
+
+:SECTION 1: THE FORWARD TRACE (VA -> PHYS)
+:DATA SOURCE: Live execution of `mm_exercise_user` (PID 20814).
+:VALUE VA: 0x7c1f1de05000 (Measured from /proc/20814/maps).
+
+:STEP 1.1: SPLIT THE INTEGER (VA)
+1. User VA is an integer: 0x7c1f1de05000.
+2. Machine is x86_64. It uses 4 levels of translation tables.
+3. Level 1 (PGD Index) = bits 39-47.
+   Calculation: (0x7c1f1de05000 >> 39) & 0x1FF = 0xF8 (Decimal 248).
+4. Level 2 (PUD Index) = bits 30-38.
+   Calculation: (0x7c1f1de05000 >> 30) & 0x1FF = 0x7C (Decimal 124).
+5. Level 3 (PMD Index) = bits 21-29.
+   Calculation: (0x7c1f1de05000 >> 21) & 0x1FF = 0xEF (Decimal 239).
+6. Level 4 (PTE Index) = bits 12-20.
+   Calculation: (0x7c1f1de05000 >> 12) & 0x1FF = 0x05 (Decimal 5).
+
+:STEP 1.2: READ THE PHYSICAL RESULT (PFN)
+7. We traced this lookup via `pagemap` file (simulating CPU hardware walk).
+8. Result (Raw Entry): 0x818000000003ca9c.
+9. Bit 63 (Present) = 1.
+10. Bits 0-54 (PFN) = 0x3ca9c.
+11. Physical Addr = PFN * 4096 = 0x3ca9c * 0x1000 = 0x3ca9c000.
+12. Value at 0x3ca9c000: 0xAA (The byte we wrote).
+
+:SECTION 2: THE REVERSE TRACE (PHYS -> VMA)
+:PROBLEM: We have PFN 0x3ca9c. We need to find the OWNER (VMA).
+
+:STEP 2.1: FIND THE METADATA (struct page)
+13. Kernel stores an array of structs called `mem_map` or `vmemmap`.
+14. `struct page` address = Base + (PFN * 64).
+15. This struct contains the field `mapping`.
+
+:STEP 2.2: DECODE THE MAPPING
+16. Read `page->mapping`. Value is a pointer (integer).
+17. Check Bit 0.
+    IF (mapping & 1):
+      It is an ANONYMOUS PAGE.
+      Owner Object = (struct anon_vma*)(mapping - 1).
+    ELSE:
+      It is a FILE PAGE.
+      Owner Object = (struct address_space*)mapping.
+
+:SECTION 3: DERIVATION OF TREES (WHY DO WE NEED THEM?)
+:AXIOM T0: A Process has N memory areas (VMAs).
+:AXIOM T1: CPU must find the correct VMA for every access (to check permissions).
+
+:SCENARIO A: LINEAR LIST (The Naive Way)
+18. Process has 1000 VMAs.
+19. Storage: Linked List. VMA1 -> VMA2 -> VMA3 ...
+20. Operation: Find VMA for Address X.
+21. Cost: Check VMA1 (No). Check VMA2 (No) ... Check VMA500 (Yes).
+22. Average Steps: N / 2 = 500 steps.
+23. Total Accesses per second: 1,000,000.
+24. Total Cost: 500 * 1,000,000 = 500,000,000 checks.
+25. CONCLUSION: Too slow.
+
+:SCENARIO B: BINARY SEARCH (The Better Way)
+26. Storage: Sorted Array or Tree.
+27. Cost: log2(N).
+28. For N=1000: log2(1000) ≈ 10 steps.
+29. Total Cost: 10 * 1,000,000 = 10,000,000 checks.
+30. CONCLUSION: 50x faster than List.
+31. IMPLEMENTATION: Red-Black Tree (Balanced Binary Tree).
+
+:SCENARIO C: THE GAP PROBLEM (Why Maple Tree?)
+32. Operation: `mmap(size=4096)`. Needs to find a FREE HOLE.
+33. RB Tree (Standard): Stores allocated items.
+    [0-4k] [8k-12k] [16k-20k]
+34. Algorithm:
+    - Visit Node [8k-12k]. Is there space left? No.
+    - Visit Node [0-4k]. Is there space right? Yes (4k-8k).
+35. Problem: In RB Tree, "gap info" is not stored. Must traverse to find gaps.
+36. Worst case: O(N) linear scan of sorted nodes to find a gap.
+37. SOLUTION: Structure that stores GAPS in the nodes.
+38. NEW STRUCTURE: MAPLE TREE.
+    - Node contains: [Range 0-4k, MaxGap=0] [Range 8k-12k, MaxGap=4k]
+    - Search: "Find Node with MaxGap >= Request".
+    - tracing: O(log N).
+39. FACT: Linux 6.1 moved from RB Tree to Maple Tree for `mm_struct` to solve this GAP problem.
+
+:SUMMARY OF STRUCTURES
+40. Forward (mm_struct): Maple Tree (Optimized for Gap Search).
+41. Reverse (anon_vma): RB Tree / Interval Tree (Optimized for Overlap Search).
+================================================================================
+
+:GOAL: Trace integers from User VA -> RAM -> VMA with REAL DATA.
+:DATA SOURCE: Live execution of `mm_exercise_user` (PID 20814).
+
+:TRACE 1: FORWARD PATH (THE CPU WALK)
+  User VA: 0x7c1f1de05000 (from maps).
+  Logic: CPU splits 48-bit VA into 4 indices + offset.
+  
+  Binary Split (48 bits):
+  011111000 001111100 011101111 000000101 000000000000
+  |_______| |_______| |_______| |_______| |__________|
+     PGD       PUD       PMD       PTE      OFFSET
+
+  Step 1. CR3 (Phys) + PGD_Index(248) * 8 -> PGD Entry.
+          PGD Entry contains Phys Addr of PUD Table.
+  Step 2. PUD_Phys + PUD_Index(124) * 8 -> PUD Entry.
+          PUD Entry contains Phys Addr of PMD Table.
+  Step 3. PMD_Phys + PMD_Index(239) * 8 -> PMD Entry.
+          PMD Entry contains Phys Addr of Page Table.
+  Step 4. PT_Phys  + PTE_Index(5)   * 8 -> PTE Entry.
+          PTE Entry contains PFN + Flags.
+
+  :REAL DATA (From /proc/20814/pagemap):
+  Offset calculated: 0x7c1f1de05000 >> 12 = 2082414085.
+  Raw Entry read: 0x818000000003ca9c.
+  
+  DECODING 0x818000000003ca9c:
+  Bit 63 (Present): 1 (Page is in RAM).
+  Bits 0-54 (PFN): 0x3ca9c (Decimal 248476).
+  
+  :PHYSICAL RAM ADDRESS
+  Phys = PFN * 4096 = 0x3ca9c * 0x1000 = 0x3ca9c000.
+  Value at 0x3ca9c000: 0xAA (We wrote this byte).
+
+:TRACE 2: REVERSE PATH (THE KERNEL LOOKUP)
+  Goal: Packet of data arrives at Phys 0x3ca9c000. Which Process owns it?
+  
+  Step 1. Phys Base -> struct page.
+          page = vmemmap + PFN(0x3ca9c) * sizeof(struct page).
+          
+  Step 2. struct page -> mapping.
+          Read `page->mapping`.
+          IF (mapping & 1): It is ANONYMOUS.
+          Target = (struct anon_vma*)(mapping & ~1).
+          
+  Step 3. anon_vma -> VMA (Why Trees?).
+          We have `anon_vma`. It represents "The Object".
+          But which *Range*? Note: `fork()` makes multiple VMAs share same `anon_vma`.
+          We need to find the VMA that covers index `pgoff`.
+          
+          Structure: `anon_vma->rb_root` (Red-Black Tree).
+          Search: Walk RB Tree. Compare `vma->vm_pgoff`.
+          Found Node: `struct anon_vma_chain`.
+          Result: `anon_vma_chain->vma`.
+          
+:DERIVATION: WHY TREES? (The "Why" Question)
+
+  :1. WHY MAPLE TREE? (Forward: mm_struct -> vma)
+      Old way (RB Tree): Good for finding exact match. Bad for "Find Free Gap".
+      Problem: `mmap` needs to find "Unused space between 0x1000 and 0x8000".
+      RB Tree: Must walk entire tree to find gaps. Slow O(N).
+      Maple Tree: Stores RANGES and GAPS directly in nodes.
+      Result: `mmap` is O(log N). Fast gap search.
+      Current Kernel (6.14): `mm_struct` uses `mm_mt` (Maple Tree).
+
+  :2. WHY INTERVAL/RB TREE? (Reverse: page -> vma)
+      Problem: Physical Page P belongs to file "libc.so".
+      "libc.so" is mapped by 100 processes (firefox, bash, python).
+      If we swap out Page P, we must modify PTEs in ALL 100 processes.
+      Naive List: Linked List of VMAs. O(N).
+      1000 processes? swapping takes 1000 steps. Bad.
+      Solution: Interval Tree (struct address_space) or RB Tree (struct anon_vma).
+      Process:
+        1. Look up File Object (`address_space`).
+        2. Search Interval Tree for range [Offset, Offset+4096].
+        3. Returns strictly the overlapping VMAs (e.g., 100 matches).
+      Result: Efficient lookup of sharing processes.
+
+  :SUMMARY OF FLOW
+  Forward: VA -> [Maple Tree] -> VMA.
+  Forward: VA -> [Page Table Walk] -> Phys.
+  Reverse: Phys -> [struct page] -> [RB/Interval Tree] -> VMA.
+
+
+================================================================================
+:AXIOMATIC VERIFICATION SESSION (2026-01-02 11:05)
+================================================================================
+
+:GOAL: Prove that Manual Calculation of Indices matches Kernel Hardware Reality.
+:METHOD:
+  1. Generate VA in userspace (Axiom 0).
+  2. Calculate PGD Index manually (Axiom 1).
+  3. Modify Kernel to dump real PGD Index (The Proof).
+  4. Compare.
+
+:STEP 1: AXIOM 0 - THE INTEGER
+  Source: `mm_exercise_user` (PID 26850).
+  Syscall: `mmap(NULL, ...)` -> Kernel returns available slot.
+  Value: `0x73de0912a000`.
+
+:STEP 2: AXIOM 1 - MANUAL CALCULATION
+  Formula: PGD Index uses bits 39-47.
+  Operation: `(VA >> 39) & 0x1FF`.
+  Calculation:
+    0x73de0912a000 = 0111 0011 1101 ...
+    Shift Right 39 = 00...00011100111
+    Binary 011100111 = 231 (Decimal) = 0xE7 (Hex).
+  PREDICTION: The kernel MUST check slot #231 in the top-level table.
+
+:STEP 3: THE KERNEL PROOF
+  Tool: `mm_exercise_hw.ko` modified to implement `MM_AXIOM_IOC_WALK_VA`.
+  Mechanism: `pgd_offset(mm, va)` macro inside kernel.
+  
+  :DMESG OUTPUT (The Truth):
+  [ 7066.990885] ================ [ AXIOM WALK: 0x73de0912a000 ] ================
+  [ 7066.990893] L1 PGD: Address = ... | Index = 231 (0xe7) | Val = 0x10f44e067
+  [ 7066.990897] L2 PUD: Address = ... | Index = 376 (0x178) | Val = 0x1516de067
+  [ 7066.990900] L3 PMD: Address = ... | Index = 72 (0x48)   | Val = 0x13cea0067
+  [ 7066.990903] L4 PTE: Address = ... | Index = 298 (0x12a) | Val = 0x800000034a37d867
+
+:CONCLUSION
+  Manual Calculation: 0xE7.
+  Kernel Reality:     0xE7.
+  Status: MATCH ✓.
+  
+  We have proven, starting from an empty integer, via Axioms of Bit Shifting,
+  exactly where the hardware goes to find memory.
+  

@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -88,12 +90,13 @@ int main(int argc, char **argv) {
   /*
    * STEP 2: FAULT IN
    * Memory is "lazy". It does not exist until touched.
-   * Action: Write 1 byte.
+   * Action: Write a string at OFFSET 0x100 (256).
    * Hardware: Validates page table -> Empty -> Trigger Page Fault -> Allocates
-   * Phys Page -> Update Table. Write Pattern: 0xAA (10101010).
+   * Phys Page -> Update Table.
    */
-  *(volatile char *)vaddr = 0xAA;
-  printf("2. Faulted. Written 0xAA.\n");
+  char *target_addr = (char *)vaddr + 0x100;
+  strcpy(target_addr, "offset world");
+  printf("2. Faulted. Written 'offset world' at offset 0x100.\n");
 
   /*
    * STEP 3: PREVENT SWAP
@@ -168,6 +171,39 @@ int main(int argc, char **argv) {
    * Phys = PFN << 12
    */
   printf("   Phys: 0x%lx\n", pfn << 12);
+
+  /*
+   * TASK 7: VERIFY INDICES via KERNEL (AXIOM H)
+   * We calculated PGD Index = 0xae (174).
+   * Let's ask the Kernel to prove it.
+   */
+  struct axiom_walk_args {
+    int pid;
+    unsigned long va;
+  } args;
+
+  args.pid = getpid();
+  args.va = (unsigned long)target_addr;
+
+  // Use a misc device if available, or piggyback on the one we have?
+  // We didn't open the driver yet! The open above was /proc/self/pagemap.
+  // We need to open /dev/mm_axiom_hw.
+
+  printf("5. Verifying Indices with Kernel...\n");
+  int dev_fd = open("/dev/mm_axiom_hw", O_RDWR);
+  if (dev_fd < 0) {
+    // Try to make the node if it doesn't exist (it's a misc device)
+    // Misc devices usually appear automatically with udev, but let's be safe.
+    perror("   [WARN] Cannot open /dev/mm_axiom_hw. Is module loaded?");
+  } else {
+#define MM_AXIOM_IOC_WALK_VA _IOW('a', 2, struct axiom_walk_args)
+    if (ioctl(dev_fd, MM_AXIOM_IOC_WALK_VA, &args) < 0) {
+      perror("   ioctl failed");
+    } else {
+      printf("   Done. Check dmesg for '[KERNEL] PGD Index'.\n");
+    }
+    close(dev_fd);
+  }
 
   printf("\n[Step Finished] Record PFN 0x%lx in your worksheet.\n", pfn);
   printf("hit enter to exit...\n");
