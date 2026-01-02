@@ -362,6 +362,20 @@ page → mapping (& ~1) → anon_vma → rb_root → anon_vma_chain → vma
 :AXIOMATIC VERIFICATION SESSION (2026-01-02 11:05)
 ================================================================================
 
+**Status**: Verified on Linux 6.14.0
+**Axioms Verified**: [PTE Mask](./pte_mask_derivation.md), [Bit Width](./bit_width_derivation.md), [Session Log](./session_worksheet.md)
+
+## The Hypothesis
+When you call `malloc(4096)`, you do not get 4096 bytes of RAM. You get a promise.
+This investigation proves that promise is broken (and fulfilled) via the Page Fault mechanism.
+See also: [Fault at Offset Trace](./fault_at_offset_trace.md).
+
+## 1. The Virtual Lie
+Userspace programs see a contiguous, linear address space.
+Process `mm_exercise_user` (PID 1234) sees `0x7b9312dd6000`.
+  Syscall: `mmap(NULL, ...)` -> Kernel returns available slot.
+  Value: `0x73de0912a000`.
+
 :GOAL: Prove that Manual Calculation of Indices matches Kernel Hardware Reality.
 :METHOD:
   1. Generate VA in userspace (Axiom 0).
