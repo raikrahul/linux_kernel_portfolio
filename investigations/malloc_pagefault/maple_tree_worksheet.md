@@ -127,7 +127,23 @@ A17. CALCULATION: 0xffff888200000010 & 0xFFFFFFFFFFFFFF00 = 0xffff888200000000.
 
 8. RANGE MEMBERSHIP TEST: is 0x78d7ce727100 in [0x78d7ce727000, 0x78d7ce728000)? lower_bound: 0x78d7ce727100 >= 0x78d7ce727000 → 0x100 >= 0x0 → TRUE ✓, upper_bound: 0x78d7ce727100 < 0x78d7ce728000 → 0x100 < 0x1000 → TRUE ✓ → ∴ address in VMA range ✓.
 
-9. WALK ALGORITHM TRACE: mas.index=0x78d7ce727100 → read ma_root=0xffff888200000010 → decode node=0xffff888200000000 → read pivot[0]=0x78d7ce727fff → compare: 0x78d7ce727100 <= 0x78d7ce727fff? YES → return slot[0]=0xffff8881abcd0000.
+9. WALK ALGORITHM TRACE (STEP-BY-STEP CPU/RAM READS):
+W1. INPUT: faulting_addr = 0x78d7ce727100 (from CR2 register, page fault triggered by strcpy).
+W2. FUNCTION CALL: mas_walk(&mas) called from lock_vma_under_rcu (mm/memory.c:5712).
+W3. READ RAM[&mm->mm_mt.ma_root]: CPU reads 8 bytes from mm_struct. VALUE = 0xffff888200000010.
+W4. DECODE ROOT: node_addr = 0xffff888200000010 & 0xFFFFFFFFFFFFFF00 = 0xffff888200000000.
+W5. DECODE TYPE: type = (0x10 >> 3) & 0xF = 2 (maple_range_64).
+W6. READ RAM[node_addr + 8 + 0*8]: Read pivot[0] from node. OFFSET = parent(8) + pivot_index*8 = 8 + 0 = 8.
+W7. VALUE: pivot[0] = 0x78d7ce727fff (this is vm_end - 1 of the first VMA).
+W8. COMPARE: Is faulting_addr (0x78d7ce727100) <= pivot[0] (0x78d7ce727fff)?
+W9. CALCULATION: 0x78d7ce727100 - 0x78d7ce727fff = 0x78d7ce727100 - 0x78d7ce727fff. 0x100 vs 0xfff. 0x100 < 0xfff → 0x78d7ce727100 < 0x78d7ce727fff → TRUE.
+W10. MATCH: Condition TRUE → index = 0. VMA is in slot[0].
+W11. READ RAM[node_addr + 8 + 15*8 + 0*8]: Read slot[0]. OFFSET = parent(8) + pivots(15*8=120) + slot_index*8 = 8 + 120 + 0 = 128.
+W12. VALUE: slot[0] = 0xffff8881abcd0000 (pointer to vm_area_struct).
+W13. RETURN: mas_walk returns 0xffff8881abcd0000.
+W14. VERIFY VMA RANGE: Read vma->vm_start at [0xffff8881abcd0000 + 0] = 0x78d7ce727000. Read vma->vm_end at [0xffff8881abcd0000 + 8] = 0x78d7ce728000.
+W15. RANGE CHECK: Is 0x78d7ce727100 >= 0x78d7ce727000? YES. Is 0x78d7ce727100 < 0x78d7ce728000? YES. ∴ VMA FOUND ✓.
+TOTAL RAM READS: 4 (ma_root, pivot[0], slot[0], vma fields). TOTAL COMPARISONS: 1.
 
 ---
 
