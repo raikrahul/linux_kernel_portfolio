@@ -73,9 +73,18 @@ B3b. MAPLE TREE (16-way branching): 1 node = 16 slots. 2 levels = 16×16 = 256. 
 B3c. NUMERICAL EXAMPLE: N=1000. 16^2=256 < 1000 < 4096=16^3. ∴ 3 levels. ∴ 3 RAM reads max.
 B3d. COMPARE: Binary tree = 10 reads. Maple tree = 3 reads. Maple is 3× faster.
 B4. HISTORY (KERNEL < 6.1): Used rbtree (red-black tree). SOURCE: mm_types.h:553 still has `struct rb_node vm_rb` for file-backed mappings.
-B4a. RBTREE PROBLEM: Binary (2-way), 3 cache lines per node, high mmap_sem contention.
-B4b. MAPLE TREE FIX (kernel 6.1, Oct 2022): 16-way branching, 2 cache lines, RCU-safe. YOUR KERNEL: 6.14.0-37-generic (has Maple Tree ✓).
-B4c. REMOVAL: vm_next/vm_prev linked list removed. Now use ma_state + vma_iterator.
+B4a. RBTREE AXIOM 1: Binary Search Tree. Each node: KEY, LEFT child, RIGHT child.
+B4b. RBTREE AXIOM 2: BST Property: LEFT subtree keys < node KEY < RIGHT subtree keys.
+B4c. RBTREE AXIOM 3: For VMAs, KEY = vm_start. Nodes also store vm_end for range check.
+B4d. RBTREE STRUCTURE: 5 VMAs example: VMA_C(0x5000) at root, VMA_B(0x3000)/VMA_D(0x7000) as children, VMA_A(0x1000)/VMA_E(0x9000) as leaves.
+B4e. RBTREE LOOKUP for addr=0x7500: Step1: root=VMA_C, 0x7500 not in [0x5000,0x6000), 0x7500>0x5000 → go RIGHT. Step2: VMA_D, 0x7500 in [0x7000,0x8000)? YES → FOUND. 2 steps.
+B4f. RBTREE BALANCING: RED/BLACK coloring rules ensure depth ≤ 2×log₂(N+1). N=1000 → max depth ≤ 20.
+B4g. RBTREE PROBLEM: Binary (2-way), 3 cache lines per node (~40 bytes spread), high mmap_sem contention.
+B4h. OLD STRUCT: `vm_area_struct` had: `struct rb_node vm_rb` (embedded), `vm_next`/`vm_prev` (linked list for sequential traversal).
+B4i. OLD FUNCTION: `find_vma(mm, addr)` did: node=mm->mm_rb.rb_node; while(node) { if addr<vm_start go left; else if addr>=vm_end go right; else return vma; }.
+B4j. COMPARISON TABLE: | Property | RB-Tree | Maple | | Branching | 2 | 16 | | Depth/1000 VMAs | ~10 | ~3 | | RAM reads | ~10 | ~3 |
+B4k. MAPLE TREE FIX (kernel 6.1, Oct 2022): 16-way branching, 256 bytes/node, RCU-safe. YOUR KERNEL: 6.14.0-37-generic (has Maple Tree ✓).
+B4l. REMOVAL: vm_next/vm_prev linked list removed. Now use ma_state + vma_iterator.
 B5. AXIOM: Each node = 256 bytes = 4 cache lines (64 bytes each). Fits in L1 cache.
 B6. AXIOM: Tree has ROOT pointer (ma_root) pointing to first node.
 B7. AXIOM: Nodes contain PIVOTS (boundaries) and SLOTS (child pointers or VMA pointers).
