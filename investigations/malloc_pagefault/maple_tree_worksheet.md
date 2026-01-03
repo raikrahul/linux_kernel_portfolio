@@ -59,3 +59,41 @@ F5. atomic_cmpxchg fails (lock already held) → vma_start_read returns 0 → go
 ---
 
 ## NEW THINGS INTRODUCED WITHOUT DERIVATION: None. All addresses derived from: CR2=0x78d7ce727100 (hardware), vm_start from mmap return, pivot from vm_end-1, slot from VMA allocation
+
+3a. DETAILED STRUCT DIAGRAM:
+```
++======================== struct vm_area_struct ========================+
+| OFFSET | SIZE | FIELD                | YOUR VALUE                     |
++--------+------+----------------------+--------------------------------+
+|   0    |  8   | vm_start             | 0x78d7ce727000                 |
+|   8    |  8   | vm_end               | 0x78d7ce728000                 |
+|  16    |  8   | vm_mm                | → mm_struct (SAME as current->mm) |
+|  24    |  8   | vm_page_prot         | Page protection bits           |
+|  32    |  8   | vm_flags             | 0x73 (READ|WRITE|MAY*)         |
+|  40    |  4   | vm_lock_seq          | Lock sequence number           |
+|  44    |  8   | vm_lock              | → struct vma_lock              |
+|  52    |  1   | detached             | 0 (not detached) [line 5724]   |
+|  56    | 24   | shared.rb            | rb_node for interval tree      |
+|  80    | 16   | anon_vma_chain       | list_head (prev, next)         |
+|  96    |  8   | anon_vma             | → struct anon_vma              |
+| 104    |  8   | vm_ops               | NULL (anonymous mapping)       |
+| 112    |  8   | vm_pgoff             | 0 (no file offset)             |
+| 120    |  8   | vm_file              | NULL (anonymous, no file)      |
+| 128    |  8   | vm_private_data      | NULL                           |
++--------+------+----------------------+--------------------------------+
+```
+
+3b. POINTER RELATIONSHIP DIAGRAM:
+```
++--task_struct (current)--+          +--mm_struct--+          +--vm_area_struct--+
+| pid = 86356             |          |             |          |                  |
+| mm ---------------------->-------->| mm_mt ------+--------->| vm_mm -----------+
+|                         |          |             |   |      |                  |
++-------------------------+          +-------------+   |      +------------------+
+                                           ^           |             |
+                                           |           |             |
+                                           +-----------+-------------+
+                                           (vma->vm_mm == current->mm)
+```
+→ AXIOM: current=pointer to task_struct of running process → current->mm=pointer to mm_struct (offset ~1000 in task_struct) → vma->vm_mm=pointer to mm_struct (offset 16 in vma) → VERIFY: for VMAs of this process, vma->vm_mm == current->mm ✓.
+
