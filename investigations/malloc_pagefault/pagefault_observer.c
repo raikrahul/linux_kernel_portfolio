@@ -69,6 +69,28 @@ static struct kprobe kp_fault = {
 };
 
 /*
+ * kp_vma_link: Kprobe to observe VMA insertion into Maple Tree.
+ * WHAT: Intercepts vma_link() calls during mmap().
+ * WHY: Proves VMA is created during mmap(), NOT during page fault.
+ * WHERE: mmap.c:395 - vma_link(struct mm_struct *mm, struct vm_area_struct
+ * *vma) ARGS: RDI = mm, RSI = vma.
+ */
+static struct kprobe kp_vma_link = {
+    .symbol_name = "vma_link",
+};
+
+/*
+ * kp_mmap_region: Kprobe to observe ALL mmap() calls including anonymous.
+ * WHAT: Intercepts __mmap_region() which creates VMA for ALL mmap types.
+ * WHY: vma_link() not called for all paths. __mmap_region is the common path.
+ * WHERE: mmap.c:2727 - __mmap_region(file, addr, len, vm_flags, pgoff, uf)
+ * ARGS: RDI = file (NULL for anonymous), RSI = addr, RDX = len.
+ */
+static struct kprobe kp_mmap_region = {
+    .symbol_name = "__mmap_region",
+};
+
+/*
  * handler_pre: Called BEFORE handle_mm_fault executes.
  *
  * WHAT: Extract arguments from pt_regs and log them.
@@ -183,9 +205,122 @@ static int __kprobes handler_pre(struct kprobe *p, struct pt_regs *regs) {
    *   FLAGS: 1-4 hex digits.
    *   VMA: 12-16 hex digits each.
    */
-  pr_info("[PF_OBS] PID=%d COMM=%s ADDR=0x%lx FLAGS=0x%x VMA=[0x%lx-0x%lx]\n",
-          current->pid, current->comm, address, flags, vma ? vma->vm_start : 0,
-          vma ? vma->vm_end : 0);
+  /* Arg4 is user regs */
+  struct pt_regs *user_regs = (struct pt_regs *)regs->cx;
+  unsigned long user_ip = user_regs ? user_regs->ip : 0;
+  unsigned long user_sp = user_regs ? user_regs->sp : 0;
+
+  /* Stack Probing Logic (Derived Axiomatically)
+   * 1. AXIOM: Every thread needs a private scratchpad (Stack).
+   * 2. DEFINITION: 'current->stack' is the Base Address of this allocation.
+   *    (Source: include/linux/sched.h, task_struct)
+   * 3. DEFINITION: 'THREAD_SIZE' is the Size of this allocation.
+   *    (Source: arch/x86/include/asm/page_64_types.h)
+   * 4. CALCULATION: Top = Base + Size.
+   * 5. MEASUREMENT: __builtin_frame_address(0) reads the CPU's RSP register.
+   */
+  void *kstack_base = current->stack;
+  unsigned long kstack_top = (unsigned long)kstack_base + THREAD_SIZE;
+  unsigned long current_rsp = (unsigned long)__builtin_frame_address(0);
+
+  /*
+   * Hardware Error Code (AXIOM DERIVATION)
+   * Source: arch/x86/include/asm/ptrace.h, line 46:
+   * "On interrupt, this [orig_ax] is the error code."
+   */
+  unsigned long hw_error = user_regs ? user_regs->orig_ax : 0;
+
+  pr_info("[PF_OBS] PID=%d COMM=%s ADDR=0x%lx FLAGS=0x%x HW_ERROR=0x%lx "
+          "VMA=[0x%lx-0x%lx] "
+          "USER_RIP=0x%lx USER_RSP=0x%lx\n",
+          current->pid, current->comm, address, flags, hw_error,
+          vma ? vma->vm_start : 0, vma ? vma->vm_end : 0, user_ip, user_sp);
+
+  pr_info("[PF_OBS] PROOF: Task=0x%px StackBase=0x%px StackTop=0x%lx "
+          "CurrentKernelRSP=0x%lx THREAD_SIZE=%lu\n",
+          current, kstack_base, kstack_top, current_rsp, THREAD_SIZE);
+
+  return 0;
+}
+
+/*
+ * vma_link_handler_pre: Called BEFORE vma_link executes.
+ *
+ * WHAT: Observe VMA insertion into Maple Tree during mmap().
+ *
+ * WHY: Prove that mmap() creates VMA entry, NOT page fault.
+ *
+ * WHERE: vma_link(struct mm_struct *mm, struct vm_area_struct *vma)
+ *        x86_64: RDI = mm, RSI = vma.
+ *
+ * EXAMPLE:
+ *   User calls mmap(NULL, 4096, PROT_READ|PROT_WRITE,
+ * MAP_PRIVATE|MAP_ANONYMOUS, -1, 0). Kernel calls vma_link(mm, vma) where
+ * vma->vm_start = 0x716b326c8000. Our probe fires and logs: [MAPLE_INSERT]
+ * vm_start=0x716b326c8000 vm_end=0x716b326c9000.
+ */
+static int __kprobes vma_link_handler_pre(struct kprobe *p,
+                                          struct pt_regs *regs) {
+  struct vm_area_struct *vma;
+
+  /* Filter by PID. */
+  if (target_pid != 0 && current->pid != target_pid)
+    return 0;
+
+  /*
+   * vma = 2nd argument = RSI register.
+   * x86_64 calling convention: arg1=RDI, arg2=RSI, arg3=RDX, arg4=RCX.
+   */
+  vma = (struct vm_area_struct *)regs->si;
+
+  if (vma) {
+    pr_info("[MAPLE_INSERT] PID=%d COMM=%s vm_start=0x%lx vm_end=0x%lx "
+            "vm_flags=0x%lx\n",
+            current->pid, current->comm, vma->vm_start, vma->vm_end,
+            vma->vm_flags);
+  }
+
+  return 0;
+}
+
+/*
+ * mmap_region_handler_pre: Called BEFORE __mmap_region executes.
+ *
+ * WHAT: Observe ALL mmap() calls including anonymous.
+ *
+ * WHY: vma_link() not called for anonymous mmap path. __mmap_region is called
+ *      for ALL mmap types and shows the address BEFORE VMA is created.
+ *
+ * WHERE: __mmap_region(file, addr, len, vm_flags, pgoff, uf)
+ *        x86_64: RDI = file, RSI = addr, RDX = len, RCX = vm_flags.
+ */
+static int __kprobes mmap_region_handler_pre(struct kprobe *p,
+                                             struct pt_regs *regs) {
+  unsigned long file_ptr;
+  unsigned long addr;
+  unsigned long len;
+  unsigned long vm_flags;
+
+  /* Filter by PID. */
+  if (target_pid != 0 && current->pid != target_pid)
+    return 0;
+
+  /*
+   * __mmap_region(file, addr, len, vm_flags, pgoff, uf)
+   * RDI = file (NULL for anonymous)
+   * RSI = addr
+   * RDX = len
+   * RCX = vm_flags
+   */
+  file_ptr = regs->di;
+  addr = regs->si;
+  len = regs->dx;
+  vm_flags = regs->cx;
+
+  pr_info("[MMAP_REGION] PID=%d COMM=%s file=%s addr=0x%lx len=0x%lx "
+          "vm_flags=0x%lx\n",
+          current->pid, current->comm, file_ptr ? "FILE" : "ANON", addr, len,
+          vm_flags);
 
   return 0;
 }
@@ -257,23 +392,41 @@ static void __kprobes handler_post(struct kprobe *p, struct pt_regs *regs,
 static int __init pagefault_observer_init(void) {
   int ret;
 
+  /* Register handle_mm_fault probe. */
   kp_fault.pre_handler = handler_pre;
   kp_fault.post_handler = handler_post;
 
   ret = register_kprobe(&kp_fault);
   if (ret < 0) {
-    pr_err("[PF_OBS] register_kprobe failed: %d\n", ret);
+    pr_err("[PF_OBS] register_kprobe(handle_mm_fault) failed: %d\n", ret);
     return ret;
   }
 
-  /*
-   * Log success.
-   * kp_fault.addr = resolved address of handle_mm_fault.
-   * EXAMPLE: kp_fault.addr = 0xffffffff81234560.
-   */
-  pr_info("[PF_OBS] Loaded. Observing handle_mm_fault. target_pid=%d\n",
-          target_pid);
-  pr_info("[PF_OBS] kprobe at 0x%px\n", kp_fault.addr);
+  /* Register vma_link probe. */
+  kp_vma_link.pre_handler = vma_link_handler_pre;
+
+  ret = register_kprobe(&kp_vma_link);
+  if (ret < 0) {
+    pr_err("[PF_OBS] register_kprobe(vma_link) failed: %d\n", ret);
+    unregister_kprobe(&kp_fault);
+    return ret;
+  }
+
+  /* Register __mmap_region probe. */
+  kp_mmap_region.pre_handler = mmap_region_handler_pre;
+
+  ret = register_kprobe(&kp_mmap_region);
+  if (ret < 0) {
+    pr_err("[PF_OBS] register_kprobe(__mmap_region) failed: %d\n", ret);
+    unregister_kprobe(&kp_vma_link);
+    unregister_kprobe(&kp_fault);
+    return ret;
+  }
+
+  pr_info("[PF_OBS] Loaded. target_pid=%d\n", target_pid);
+  pr_info("[PF_OBS] kprobe handle_mm_fault at 0x%px\n", kp_fault.addr);
+  pr_info("[PF_OBS] kprobe vma_link at 0x%px\n", kp_vma_link.addr);
+  pr_info("[PF_OBS] kprobe __mmap_region at 0x%px\n", kp_mmap_region.addr);
   return 0;
 }
 
@@ -288,6 +441,8 @@ static int __init pagefault_observer_init(void) {
  *   3. Future calls to handle_mm_fault run without interception.
  */
 static void __exit pagefault_observer_exit(void) {
+  unregister_kprobe(&kp_mmap_region);
+  unregister_kprobe(&kp_vma_link);
   unregister_kprobe(&kp_fault);
   pr_info("[PF_OBS] Unloaded.\n");
 }

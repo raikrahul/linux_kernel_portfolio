@@ -86,6 +86,11 @@ int main(int argc, char **argv) {
     return 1;
   }
   printf("   VA: %p\n", vaddr);
+  printf("   PID: %d\n", getpid());
+  printf("   [PAUSED] Press ENTER to trigger Page Fault...\n");
+  printf("   [PAUSED] Sleeping 10s before triggering Page Fault...\n");
+  fflush(stdout);
+  sleep(10);
 
   /*
    * STEP 2: FAULT IN

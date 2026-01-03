@@ -2,6 +2,9 @@
 
 obj-m += mm_exercise_hw.o
 obj-m += pagefault_observer.o
+obj-m += kprobe_driver.o
+obj-m += probe0_driver.o
+obj-m += probe1_driver.o
 
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
