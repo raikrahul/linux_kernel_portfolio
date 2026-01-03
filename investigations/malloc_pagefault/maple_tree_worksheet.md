@@ -63,6 +63,19 @@ A27. From Step 2 A12: vm_end = 0x78d7ce728000.
 ∴ VMA struct: `+--vm_area_struct--+` `| vm_start=0x78d7ce727000 |` `| vm_end=0x78d7ce728000 |` `| vm_flags=0x73 |` `+--------------------+`
 
 4. STEP 4 AXIOMATIC TRACE:
+MAPLE TREE FUNDAMENTALS:
+B1. PROBLEM: Need to store VMAs and find which VMA contains a given address FAST.
+B2. NAIVE SOLUTION: Linked list. Search time = O(N). With 1000 VMAs, 1000 comparisons.
+B3. BETTER SOLUTION: Tree structure. Search time = O(log N). With 1000 VMAs, ~10 comparisons.
+B4. AXIOM: Maple Tree = B-tree variant optimized for cache lines and ranges. (Replaced rbtree+interval tree in kernel 6.1)
+B5. AXIOM: Each node = 256 bytes = 4 cache lines (64 bytes each). Fits in L1 cache.
+B6. AXIOM: Tree has ROOT pointer (ma_root) pointing to first node.
+B7. AXIOM: Nodes contain PIVOTS (boundaries) and SLOTS (child pointers or VMA pointers).
+B8. AXIOM: LEAF nodes store actual data (VMA pointers). INTERNAL nodes store child pointers.
+B9. LOOKUP ALGORITHM: Start at root, compare address to pivots, follow matching slot, repeat until leaf, return VMA.
+B10. EXAMPLE: 3 VMAs need 3 slots. 1 node with 16 slots can hold up to 16 VMAs. Tree depth = 1.
+B11. EXAMPLE: 100 VMAs need multiple nodes. Tree depth = 2 or 3. Still O(log N) lookups.
+INITIALIZATION:
 A0a. WHO INITIALIZED mm->mm_mt? fork() → kernel_clone() → copy_mm() → dup_mm() → mm_init() (fork.c:1260).
 A0b. mm_init calls mt_init_flags(&mm->mm_mt, MM_MT_FLAGS). (SOURCE: fork.c:1260)
 A0c. mt_init_flags (maple_tree.h:772-778) does: mt->ma_flags = flags (line 774), spin_lock_init(&mt->ma_lock) (line 776), rcu_assign_pointer(mt->ma_root, NULL) (line 777).
