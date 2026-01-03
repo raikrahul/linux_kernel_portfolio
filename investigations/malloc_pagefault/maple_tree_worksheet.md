@@ -65,9 +65,17 @@ A27. From Step 2 A12: vm_end = 0x78d7ce728000.
 4. STEP 4 AXIOMATIC TRACE:
 MAPLE TREE FUNDAMENTALS:
 B1. PROBLEM: Need to store VMAs and find which VMA contains a given address FAST.
-B2. NAIVE SOLUTION: Linked list. Search time = O(N). With 1000 VMAs, 1000 comparisons.
-B3. BETTER SOLUTION: Tree structure. Search time = O(log N). With 1000 VMAs, ~10 comparisons.
-B4. AXIOM: Maple Tree = B-tree variant optimized for cache lines and ranges. (Replaced rbtree+interval tree in kernel 6.1)
+B2. LINKED LIST O(N) PROOF: 5 VMAs in list. Query: find VMA for addr. Check VMA_0? NO. Check VMA_1? NO... Check VMA_4? YES. 5 checks. WORST CASE: N checks for N elements. ∴ O(N).
+B2a. NUMERICAL EXAMPLE: N=1000 VMAs, worst case = 1000 comparisons.
+B3. BINARY TREE O(log N) PROOF: Each node has 2 children. Balanced tree depth d holds 2^d - 1 elements. INVERT: N elements → depth = log₂(N+1).
+B3a. NUMERICAL EXAMPLE: N=1000. log₂(1001) ≈ log₂(1024) = 10. ∴ 10 comparisons worst case.
+B3b. MAPLE TREE (16-way branching): 1 node = 16 slots. 2 levels = 16×16 = 256. 3 levels = 16³ = 4096.
+B3c. NUMERICAL EXAMPLE: N=1000. 16^2=256 < 1000 < 4096=16^3. ∴ 3 levels. ∴ 3 RAM reads max.
+B3d. COMPARE: Binary tree = 10 reads. Maple tree = 3 reads. Maple is 3× faster.
+B4. HISTORY (KERNEL < 6.1): Used rbtree (red-black tree). SOURCE: mm_types.h:553 still has `struct rb_node vm_rb` for file-backed mappings.
+B4a. RBTREE PROBLEM: Binary (2-way), 3 cache lines per node, high mmap_sem contention.
+B4b. MAPLE TREE FIX (kernel 6.1, Oct 2022): 16-way branching, 2 cache lines, RCU-safe. YOUR KERNEL: 6.14.0-37-generic (has Maple Tree ✓).
+B4c. REMOVAL: vm_next/vm_prev linked list removed. Now use ma_state + vma_iterator.
 B5. AXIOM: Each node = 256 bytes = 4 cache lines (64 bytes each). Fits in L1 cache.
 B6. AXIOM: Tree has ROOT pointer (ma_root) pointing to first node.
 B7. AXIOM: Nodes contain PIVOTS (boundaries) and SLOTS (child pointers or VMA pointers).
