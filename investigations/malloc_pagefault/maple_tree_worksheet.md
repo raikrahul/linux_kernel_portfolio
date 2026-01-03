@@ -81,6 +81,10 @@ B4e. RBTREE LOOKUP for addr=0x7500: Step1: root=VMA_C, 0x7500 not in [0x5000,0x6
 B4f. RBTREE BALANCING: RED/BLACK coloring rules ensure depth ≤ 2×log₂(N+1). N=1000 → max depth ≤ 20.
 B4g. RBTREE PROBLEM: Binary (2-way), 3 cache lines per node (~40 bytes spread), high mmap_sem contention.
 B4h. OLD STRUCT: `vm_area_struct` had: `struct rb_node vm_rb` (embedded), `vm_next`/`vm_prev` (linked list for sequential traversal).
+B4h1. EMBEDDED MEANS: rb_node struct (24 bytes) lives INSIDE vm_area_struct, not pointed to. rb_node = {__rb_parent_color (8 bytes), rb_right (8 bytes), rb_left (8 bytes)}.
+B4h2. MEMORY LAYOUT: vm_area_struct[offset 0]=vm_start, [offset 8]=vm_end, [offset ~40]=vm_rb.rb_parent_color, [offset ~48]=vm_rb.rb_right, [offset ~56]=vm_rb.rb_left.
+B4h3. rb_entry MACRO: Given rb_node pointer, get VMA: VMA_ptr = rb_node_ptr - offset_of(vm_rb) = rb_node_ptr - 40 (example). Reads VMA fields at calculated address.
+B4h4. COLOR BIT TRICK: Pointers 8-byte aligned → low 3 bits = 0. Bit 0 stores RED(0) or BLACK(1). Parent =__rb_parent_color & ~3.
 B4i. OLD FUNCTION: `find_vma(mm, addr)` did: node=mm->mm_rb.rb_node; while(node) { if addr<vm_start go left; else if addr>=vm_end go right; else return vma; }.
 B4j. COMPARISON TABLE: | Property | RB-Tree | Maple | | Branching | 2 | 16 | | Depth/1000 VMAs | ~10 | ~3 | | RAM reads | ~10 | ~3 |
 B4k. MAPLE TREE FIX (kernel 6.1, Oct 2022): 16-way branching, 256 bytes/node, RCU-safe. YOUR KERNEL: 6.14.0-37-generic (has Maple Tree ✓).
