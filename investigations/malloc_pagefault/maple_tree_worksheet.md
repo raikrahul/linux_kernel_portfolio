@@ -75,6 +75,65 @@ OUTPUT: VMA found at 0xffff8881abcd0000 ✓
 
 ```
 
+## RAM LAYOUT: ACTUAL BYTES IN MEMORY
+
+```
+
+RAM ADDRESS                BYTES (8 bytes = 1 integer)        WHAT IT IS
+─────────────────────────────────────────────────────────────────────────────
+mm_struct somewhere in kernel RAM:
+0xffff888123456780+168     10 00 00 00 02 88 ff ff            ma_root = 0xffff888200000010
+                           │                                  (little-endian)
+                           └─ low byte 0x10 = type bits
+
+maple_range_64 node at 0xffff888200000000:
+0xffff888200000000         00 00 00 00 00 00 00 00            parent = NULL
+0xffff888200000008         ff 7f 72 ce d7 78 00 00            pivot[0] = 0x78d7ce727fff
+0xffff888200000010         00 00 00 00 00 00 00 00            pivot[1] = 0 (unused)
+...
+0xffff888200000080         00 00 cd ab 81 88 ff ff            slot[0] = 0xffff8881abcd0000
+0xffff888200000088         00 00 00 00 00 00 00 00            slot[1] = NULL (unused)
+...
+
+vm_area_struct at 0xffff8881abcd0000:
+0xffff8881abcd0000         00 70 72 ce d7 78 00 00            vm_start = 0x78d7ce727000
+0xffff8881abcd0008         00 80 72 ce d7 78 00 00            vm_end = 0x78d7ce728000
+0xffff8881abcd0010         ?? ?? ?? ?? ?? ?? ?? ??            vm_mm = pointer to mm_struct
+...
+0xffff8881abcd0020         73 00 00 00 00 00 00 00            vm_flags = 0x73
+
+```
+
+## DATA PATH THROUGH RAM
+
+```
+
+CPU register CR2 = 0x78d7ce727100 (faulting address)
+                   │
+                   v
+READ RAM[mm+168] ──────────────> 0xffff888200000010 (ma_root)
+                                 │
+                                 v
+MASK & SHIFT ──────────────────> node=0xffff888200000000, type=2
+                                 │
+                                 v
+READ RAM[node+8] ──────────────> 0x78d7ce727fff (pivot[0])
+                                 │
+                                 v
+COMPARE: 0x78d7ce727100 <= 0x78d7ce727fff? ──> YES → use slot[0]
+                                 │
+                                 v
+READ RAM[node+128] ────────────> 0xffff8881abcd0000 (VMA pointer)
+                                 │
+                                 v
+READ RAM[VMA+0] ───────────────> 0x78d7ce727000 (vm_start)
+READ RAM[VMA+8] ───────────────> 0x78d7ce728000 (vm_end)
+                                 │
+                                 v
+VERIFY: 0x78d7ce727000 <= 0x78d7ce727100 < 0x78d7ce728000 ──> TRUE ✓
+
+```
+
 1. STEP 1 AXIOMATIC TRACE:
 A1. AXIOM: 1 byte = 8 bits.
 A2. AXIOM: RAM = array of bytes, index 0 to N.
