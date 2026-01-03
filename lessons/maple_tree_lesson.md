@@ -143,20 +143,103 @@ RCU (__rcu annotation):
 
 ## SECTION 3: MAPLE NODE LAYOUT
 
-### 3.1 NODE STRUCTURE
+### 3.1 NODE STRUCTURE (ANNOTATED)
 
 ```
 SOURCE: include/linux/maple_tree.h:103-113
 
 struct maple_range_64 {
-    struct maple_pnode *parent;           // offset 0, 8 bytes
-    unsigned long pivot[MAPLE_RANGE64_SLOTS - 1];  // offset 8, 15×8=120 bytes
+
+    struct maple_pnode *parent;
+    // WHAT: 8-byte pointer to parent node
+    // WHERE: offset 0 → RAM[node_base + 0] to RAM[node_base + 7]
+    // WHY: tree traversal upward (child → parent)
+    // WHO: set by mas_store() when node inserted
+    // WHEN: node creation time
+    // WITHOUT: orphan node, cannot find root
+    // EXAMPLE: node at 0xffff888200000000, parent = 0xffff888100000000
+    //   RAM[0xffff888200000000] = 00 00 00 00 01 88 ff ff (little-endian)
+    // EDGE: root node → parent = NULL = 0x0000000000000000
+    // LARGE: 1000 VMAs = 3 levels = 1 root (parent=NULL) + 16 internal (parent=root) + 256 leafs (parent=internal)
+
+    unsigned long pivot[MAPLE_RANGE64_SLOTS - 1];
+    // WHAT: 15 × 8 = 120 bytes array of boundary values
+    // WHERE: offset 8 → RAM[node_base + 8] to RAM[node_base + 127]
+    // WHY: pivot[i] = LAST address covered by slot[i]
+    // WHO: set by mas_store() based on VMA vm_end - 1
+    // WHEN: VMA insertion time
+    // WITHOUT: no way to know which slot matches query address
+    // CALCULATION: MAPLE_RANGE64_SLOTS = 16 → pivot count = 16 - 1 = 15
+    //   15 pivots × 8 bytes = 120 bytes
+    //   pivot[0] at offset 8 + 0×8 = 8
+    //   pivot[7] at offset 8 + 7×8 = 8 + 56 = 64 → cache line 1 boundary!
+    //   pivot[14] at offset 8 + 14×8 = 8 + 112 = 120
+    // EXAMPLE 3 VMAs:
+    //   VMA_A: [0x1000, 0x2000) → pivot[0] = 0x1fff (vm_end - 1 = 0x2000 - 1)
+    //   VMA_B: [0x3000, 0x5000) → pivot[1] = 0x4fff
+    //   VMA_C: [0x7000, 0x8000) → pivot[2] = 0x7fff
+    //   pivot[3..14] = 0 (unused)
+    // MIDDLE EXAMPLE: Query 0x4000
+    //   0x4000 <= pivot[0] (0x1fff)? NO (0x4000 > 0x1fff)
+    //   0x4000 <= pivot[1] (0x4fff)? YES → slot[1] = VMA_B ✓
+    // EDGE N=1: pivot[0] = vm_end - 1, pivot[1..14] = 0
+    // EDGE N=16: all 15 pivots used, can still hold 16 VMAs (slot[15] covers > pivot[14])
+    // LARGE N=256: 16 leaf nodes, each with 15 pivots = 240 pivots total for boundaries
+    // CACHE: pivot[0..6] in cache line 0 (offset 8-63), pivot[7..13] in cache line 1 (offset 64-127)
+
     union {
-        void __rcu *slot[MAPLE_RANGE64_SLOTS];     // offset 128, 16×8=128 bytes
+        void __rcu *slot[MAPLE_RANGE64_SLOTS];
+        // WHAT: 16 × 8 = 128 bytes array of pointers
+        // WHERE: offset 128 → RAM[node_base + 128] to RAM[node_base + 255]
+        // WHY: slot[i] points to VMA (leaf) or child node (internal)
+        // WHO: set by mas_store() with VMA pointer or child node pointer
+        // WHEN: VMA insertion or tree split
+        // WITHOUT: no data, tree is useless
+        // WHICH: slot[i] covers addresses where: pivot[i-1] < addr <= pivot[i]
+        //   slot[0] covers: 0 <= addr <= pivot[0]
+        //   slot[1] covers: pivot[0] < addr <= pivot[1]
+        //   slot[15] covers: pivot[14] < addr <= ULONG_MAX
+        // CALCULATION:
+        //   slot[0] at offset 8 + 15×8 + 0×8 = 8 + 120 + 0 = 128
+        //   slot[7] at offset 128 + 7×8 = 128 + 56 = 184 → cache line 2
+        //   slot[15] at offset 128 + 15×8 = 128 + 120 = 248
+        // EXAMPLE (leaf with 3 VMAs):
+        //   slot[0] = 0xffff8881abcd0000 → VMA_A
+        //   slot[1] = 0xffff8881abcd0200 → VMA_B (VMA struct ~512 bytes apart)
+        //   slot[2] = 0xffff8881abcd0400 → VMA_C
+        //   slot[3..15] = NULL
+        // EXAMPLE (internal with 3 children):
+        //   slot[0] = 0xffff888300000010 → LEAF_A (encoded pointer with type bits!)
+        //   slot[1] = 0xffff888300000110 → LEAF_B (256 bytes apart = aligned)
+        //   slot[2] = 0xffff888300000210 → LEAF_C
+        // MEMORY for slot[0]:
+        //   RAM[0xffff888200000080] = 00 00 cd ab 81 88 ff ff (VMA at 0xffff8881abcd0000)
+        // CACHE: slot[0..7] in cache line 2 (offset 128-191), slot[8..15] in cache line 3 (offset 192-255)
     };
-};  // Total: 8 + 120 + 128 = 256 bytes
+
+};  // TOTAL: 8 + 120 + 128 = 256 bytes = 0x100 bytes = 4 cache lines (64 bytes each)
+
+// FULL MEMORY LAYOUT AT NODE 0xffff888200000000:
+// +--------+--------+-------------------------------------------+
+// | OFFSET | SIZE   | CONTENT                                   |
+// +--------+--------+-------------------------------------------+
+// | 0x000  | 8      | parent = 0x0000000000000000 (root)        |
+// | 0x008  | 8      | pivot[0] = 0x78d7ce727fff                 |
+// | 0x010  | 8      | pivot[1] = 0x0 (unused)                   |
+// | ...    | ...    | pivot[2..14] = 0                          |
+// | 0x078  | 8      | pivot[14] = 0x0                           |
+// | 0x080  | 8      | slot[0] = 0xffff8881abcd0000 (VMA ptr)    |
+// | 0x088  | 8      | slot[1] = NULL                            |
+// | ...    | ...    | slot[2..15] = NULL                        |
+// | 0x0F8  | 8      | slot[15] = NULL                           |
+// +--------+--------+-------------------------------------------+
+// TOTAL: 0x100 = 256 bytes
 
 MAPLE_RANGE64_SLOTS = 16 (SOURCE: maple_tree.h:30)
+// WHY 16? 16 slots × 8 bytes = 128 bytes. 
+// 128 + 120 (pivots) + 8 (parent) = 256 bytes = 4 cache lines.
+// 16-way branching → log₁₆(1000) = 2.5 ≈ 3 levels for 1000 VMAs.
+// Compare: binary tree log₂(1000) = 10 levels. Maple is 3.3× shallower.
 ```
 
 ### 3.2 MEMORY LAYOUT DIAGRAM
