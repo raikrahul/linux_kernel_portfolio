@@ -1,12 +1,86 @@
 # MAPLE TREE WALK WORKSHEET
 
-1. DRAW `mm->mm_mt` at t=0: `+--maple_tree--+` `| ma_flags=0x0 |` `| ma_lock=0    |` `| ma_root=NULL |` `+--------------+` → VERIFY: ma_root=0x0 ✓ means tree empty, 0 VMAs stored, mmap not called yet. → HOW DID YOU DO THIS? AXIOM 1: `mm_init` (kernel/fork.c) calls `mt_init` which sets `ma_root = NULL`. AXIOM 2: Start state is before `mmap` syscall. ∴ Tree must be empty.
+1. STEP 1 AXIOMATIC TRACE:
+A1. AXIOM: 1 byte = 8 bits.
+A2. AXIOM: RAM = array of bytes, index 0 to N.
+A3. AXIOM: Pointer = integer that indexes into RAM.
+A4. AXIOM: NULL = 0 = "points to nothing".
+A5. AXIOM: Process = running program.
+A6. AXIOM: mm_struct = data structure describing process memory. (SOURCE: mm_types.h:767)
+A7. AXIOM: mm_mt = field inside mm_struct, type struct maple_tree. (SOURCE: mm_types.h:781)
+A8. AXIOM: struct maple_tree has field ma_root (pointer). (SOURCE: maple_tree.h:225)
+A9. AXIOM: fork() -> mm_init() -> mt_init_flags(&mm->mm_mt) (SOURCE: fork.c:1260)
+A10. AXIOM: mt_init_flags sets ma_root = NULL. (SOURCE: maple_tree.h:237)
+A11. DERIVATION: At t=0 (before mmap), ma_root = NULL.
+A12. DERIVATION: NULL means tree empty.
+A13. DERIVATION: Empty tree means 0 VMAs stored.
+∴ DRAW: `+--maple_tree--+` `| ma_flags=0x0 |` `| ma_lock=0 |` `| ma_root=NULL |` `+--------------+`
 
-2. CALCULATE vm_end from vm_start: vm_start=0x78d7ce727000, size=4096=0x1000, vm_end=0x78d7ce727000+0x1000=0x78d7ce728000 → VERIFY: 0x78d7ce728000-0x78d7ce727000=0x1000=4096 ✓. → HOW DID YOU DO THIS? AXIOM 1: `mmap` argument 2 is size (4096). AXIOM 2: `vma->vm_end` definition is "first byte AFTER range". ∴ vm_end = vm_start + size. AXIOM 3: vm_start is from live data print (line 88).
+2. STEP 2 AXIOMATIC TRACE:
+A1. AXIOM: mmap() syscall takes 6 arguments.
+A2. AXIOM: Argument 2 = length in bytes. (SOURCE: man mmap)
+A3. AXIOM: Your code: mmap(NULL, 4096, ...). (SOURCE: mm_exercise_user.c:81)
+A4. DERIVATION: length = 4096 bytes.
+A5. AXIOM: 4096 in hex = 0x1000. (CALCULATION: 4096 = 4*1024 = 4*0x400 = 0x1000)
+A6. AXIOM: mmap returns start address of allocated region.
+A7. AXIOM: Your program printed: VA: 0x78d7ce727000. (SOURCE: line 88 output)
+A8. DERIVATION: vm_start = 0x78d7ce727000.
+A9. AXIOM: VMA range is [vm_start, vm_end). End is EXCLUSIVE.
+A10. AXIOM: vm_end = vm_start + length. (SOURCE: kernel convention)
+A11. CALCULATION: vm_end = 0x78d7ce727000 + 0x1000.
+A12. CALCULATION: 0x78d7ce727000 + 0x1000 = 0x78d7ce728000.
+A13. VERIFY: 0x78d7ce728000 - 0x78d7ce727000 = 0x1000 = 4096 ✓.
+∴ vm_end = 0x78d7ce728000.
 
-3. AXIOM: RAM=array of bytes, address 0 to N → AXIOM: Kernel RAM=addresses >= 0xffff800000000000 on x86_64 → AXIOM: struct in C=contiguous bytes, fields placed sequentially → AXIOM: VMA=Virtual Memory Area, describes ONE contiguous region of process address space → AXIOM: mmap syscall (mm_exercise_user.c:81) triggers kernel to allocate ~200 bytes in kernel RAM for new struct vm_area_struct → SOURCE: include/linux/mm_types.h:649 → OFFSET TABLE: vm_start(offset 0, 8 bytes) + vm_end(offset 8, 8 bytes) + vm_mm(offset 16, 8 bytes) + vm_page_prot(offset 24, 8 bytes) + vm_flags(offset 32, 8 bytes) → DERIVATION of vm_start: mmap(NULL,...) asks kernel to choose address, kernel's get_unmapped_area returns 0x78d7ce727000 (live data from line 88 print) → DERIVATION of vm_end: vm_end=vm_start+size=0x78d7ce727000+0x1000=0x78d7ce728000 ✓ → DERIVATION of vm_flags: PROT_READ(0x1)|PROT_WRITE(0x2) → VM_READ(0x01)+VM_WRITE(0x02)+VM_MAYREAD(0x10)+VM_MAYWRITE(0x20)+VM_MAYEXEC(0x40)=0x01+0x02+0x10+0x20+0x40=0x03+0x70=0x73 ✓ → DRAW: `+--vm_area_struct--+` `| vm_start=0x78d7ce727000 |` `| vm_end=0x78d7ce728000   |` `| vm_flags=0x73           |` `+----------------------+` → WHY THIS STEP: before mmap ma_root=NULL, after mmap ma_root→node→VMA, at page fault mas_walk() searches for this VMA, if VMA not in tree → returns NULL → fault fails ✓. → HOW DID YOU DO THIS? AXIOM 1: `mmap` syscall creates VMA. AXIOM 2: `struct vm_area_struct` definition (mm_types.h). AXIOM 3: `vm_start` from live data. AXIOM 4: `PROT_` constants from `man mmap`. AXIOM 5: `calc_vm_flag_bits` (kernel function) derivation from `mm.h`.
+3. STEP 3 AXIOMATIC TRACE:
+A1. AXIOM: mmap() creates struct vm_area_struct in kernel RAM.
+A2. AXIOM: Kernel RAM addresses >= 0xffff800000000000 on x86_64.
+A3. AXIOM: struct vm_area_struct defined at mm_types.h:649.
+A4. AXIOM: First field is vm_start (8 bytes). (SOURCE: mm_types.h:655)
+A5. AXIOM: Second field is vm_end (8 bytes). (SOURCE: mm_types.h:656)
+A6. DERIVATION: Offset of vm_start = 0.
+A7. DERIVATION: Offset of vm_end = 0 + 8 = 8.
+A8. AXIOM: vm_mm field is pointer to mm_struct. (SOURCE: mm_types.h:663)
+A9. DERIVATION: Offset of vm_mm = 8 + 8 = 16.
+A10. AXIOM: vm_flags field stores permission bits. (SOURCE: mm_types.h:671)
+A11. AXIOM: PROT_READ = 0x1. (SOURCE: man mmap)
+A12. AXIOM: PROT_WRITE = 0x2. (SOURCE: man mmap)
+A13. AXIOM: Your mmap: PROT_READ | PROT_WRITE = 0x1 | 0x2 = 0x3.
+A14. AXIOM: Kernel translates PROT_to VM_ flags.
+A15. AXIOM: VM_READ = 0x01. (SOURCE: mm.h:270)
+A16. AXIOM: VM_WRITE = 0x02. (SOURCE: mm.h:271)
+A17. AXIOM: VM_MAYREAD = 0x10. (SOURCE: mm.h:276)
+A18. AXIOM: VM_MAYWRITE = 0x20. (SOURCE: mm.h:277)
+A19. AXIOM: VM_MAYEXEC = 0x40. (SOURCE: mm.h:278)
+A20. CALCULATION: vm_flags = 0x01 + 0x02 + 0x10 + 0x20 + 0x40.
+A21. CALCULATION: 0x01 + 0x02 = 0x03.
+A22. CALCULATION: 0x03 + 0x10 = 0x13.
+A23. CALCULATION: 0x13 + 0x20 = 0x33.
+A24. CALCULATION: 0x33 + 0x40 = 0x73.
+A25. DERIVATION: vm_flags = 0x73.
+A26. From Step 2 A8: vm_start = 0x78d7ce727000.
+A27. From Step 2 A12: vm_end = 0x78d7ce728000.
+∴ VMA struct: `+--vm_area_struct--+` `| vm_start=0x78d7ce727000 |` `| vm_end=0x78d7ce728000 |` `| vm_flags=0x73 |` `+--------------------+`
 
-4. AXIOM: ma_root pointer encodes (Address + Type Bits) → SOURCE: lib/maple_tree.c:223 `entry >> MAPLE_NODE_TYPE_SHIFT` → AXIOM: MAPLE_NODE_TYPE_SHIFT=0x03, MAPLE_NODE_TYPE_MASK=0x0F → CALCULATION: If Type=2 (maple_range_64), bits 3-6=0010 → Encoded bits = (2 << 3) = 16 = 0x10. → PREDICTION: ma_root should look like 0xffff888200000016 (assuming some lower bits set or just 0x10) → DECODE EXAMPLE (0xffff888200000010): Node Address = 0xffff888200000010 & ~0xFF = 0xffff888200000000 ✓ → Type Code = (0x10 >> 3) & 0xF = 2 (maple_range_64) ✓ → VERIFY: maple_tree.h:147 `maple_range_64` is index 2. → HOW DID YOU DO THIS? AXIOM 1: Maple Tree structure (maple_tree.h). AXIOM 2: Type encoding macro (lib/maple_tree.c). AXIOM 3: Enum values (maple_tree.h). AXIOM 4: Bitwise shift logic (`x << 3`).
+4. STEP 4 AXIOMATIC TRACE:
+A1. AXIOM: After mmap, kernel inserts VMA into Maple Tree.
+A2. AXIOM: Maple Tree stores root pointer in ma_root. (SOURCE: maple_tree.h:225)
+A3. AXIOM: Maple nodes are 256-byte aligned. (SOURCE: maple_tree.h:271)
+A4. DERIVATION: 256 = 0x100. Low 8 bits of pointer always 0.
+A5. AXIOM: Kernel uses low bits to encode node TYPE. (SOURCE: maple_tree.h:67-70)
+A6. AXIOM: MAPLE_NODE_TYPE_SHIFT = 0x03. (SOURCE: maple_tree.h:180)
+A7. AXIOM: MAPLE_NODE_TYPE_MASK = 0x0F. (SOURCE: maple_tree.h:179)
+A8. AXIOM: enum maple_type at maple_tree.h:144-149: maple_dense=0, maple_leaf_64=1, maple_range_64=2, maple_arange_64=3.
+A9. AXIOM: VMA tree uses maple_range_64 (Type 2). (SOURCE: mm_types.h MM_MT_FLAGS)
+A10. CALCULATION: Encoded type = Type << SHIFT = 2 << 3 = 16 = 0x10.
+A11. AXIOM: Node allocated at address like 0xffff888200000000.
+A12. CALCULATION: ma_root = node_address | encoded_type = 0xffff888200000000 | 0x10 = 0xffff888200000010.
+A13. AXIOM: To decode, function mte_node_type() uses: (entry >> 3) & 0xF. (SOURCE: lib/maple_tree.c:223)
+A14. CALCULATION: (0x10 >> 3) & 0xF = 2.
+A15. VERIFY: 2 = maple_range_64 ✓.
+A16. AXIOM: To get node address: entry & ~0xFF.
+A17. CALCULATION: 0xffff888200000010 & 0xFFFFFFFFFFFFFF00 = 0xffff888200000000.
+∴ ma_root = 0xffff888200000010 encodes (node_address=0xffff888200000000, type=maple_range_64).
 
 5. DRAW Leaf Node at 0xffff888200000000: `+--maple_range_64 @ 0xffff888200000000--+` `| pivot[0] = 0x78d7ce727fff             |` `| pivot[1] = 0x0 (unused)               |` `| slot[0]  = 0xffff8881abcd0000 (VMA)   |` `| slot[1]  = NULL                       |` `+---------------------------------------+` → VERIFY: pivot[0]=vm_end-1=0x78d7ce728000-1=0x78d7ce727fff ✓.
 
