@@ -89,7 +89,16 @@ B4i. OLD FUNCTION: `find_vma(mm, addr)` did: node=mm->mm_rb.rb_node; while(node)
 B4j. COMPARISON TABLE: | Property | RB-Tree | Maple | | Branching | 2 | 16 | | Depth/1000 VMAs | ~10 | ~3 | | RAM reads | ~10 | ~3 |
 B4k. MAPLE TREE FIX (kernel 6.1, Oct 2022): 16-way branching, 256 bytes/node, RCU-safe. YOUR KERNEL: 6.14.0-37-generic (has Maple Tree ✓).
 B4l. REMOVAL: vm_next/vm_prev linked list removed. Now use ma_state + vma_iterator.
-B5. AXIOM: Each node = 256 bytes = 4 cache lines (64 bytes each). Fits in L1 cache.
+B5. YOUR MACHINE CACHE (LIVE DATA):
+B5a. CPU: AMD Ryzen 5 4600H. L1d=192 KiB (6 instances), L2=3 MiB, L3=8 MiB. (SOURCE: lscpu)
+B5b. CACHE LINE SIZE: 64 bytes. (SOURCE: getconf LEVEL1_DCACHE_LINESIZE = 64)
+B5c. TLB SIZE: 3072 × 4K pages = 3072 entries. (SOURCE: /proc/cpuinfo TLB size)
+B5d. MAPLE NODE = 256 bytes. CALCULATION: 256 / 64 = 4 cache lines per node.
+B5e. CACHE READ OFFSETS: pivot[0] at offset 8 → cache line 0 (0-63). slot[0] at offset 128 → cache line 2 (128-191).
+B5f. MAPLE 3 levels: 3 nodes × 4 cache lines = 12 cache line fetches max.
+B5g. RB-TREE 10 levels: 10 VMAs × 4 cache lines each = 40 cache line fetches max.
+B5h. RESULT: MAPLE = 12 vs RB-TREE = 40. MAPLE is 3.3× fewer cache fetches ✓.
+B5i. TLB: MAPLE 3 levels = 3 TLB entries. RB-TREE 10 levels = 10 TLB entries. MAPLE = 3× fewer TLB misses ✓.
 B6. AXIOM: Tree has ROOT pointer (ma_root) pointing to first node.
 B7. AXIOM: Nodes contain PIVOTS (boundaries) and SLOTS (child pointers or VMA pointers).
 B8. AXIOM: LEAF nodes store actual data (VMA pointers). INTERNAL nodes store child pointers.
