@@ -6,7 +6,7 @@
 
 3. AXIOM: RAM=array of bytes, address 0 to N → AXIOM: Kernel RAM=addresses >= 0xffff800000000000 on x86_64 → AXIOM: struct in C=contiguous bytes, fields placed sequentially → AXIOM: VMA=Virtual Memory Area, describes ONE contiguous region of process address space → AXIOM: mmap syscall (mm_exercise_user.c:81) triggers kernel to allocate ~200 bytes in kernel RAM for new struct vm_area_struct → SOURCE: include/linux/mm_types.h:649 → OFFSET TABLE: vm_start(offset 0, 8 bytes) + vm_end(offset 8, 8 bytes) + vm_mm(offset 16, 8 bytes) + vm_page_prot(offset 24, 8 bytes) + vm_flags(offset 32, 8 bytes) → DERIVATION of vm_start: mmap(NULL,...) asks kernel to choose address, kernel's get_unmapped_area returns 0x78d7ce727000 (live data from line 88 print) → DERIVATION of vm_end: vm_end=vm_start+size=0x78d7ce727000+0x1000=0x78d7ce728000 ✓ → DERIVATION of vm_flags: PROT_READ(0x1)|PROT_WRITE(0x2) → VM_READ(0x01)+VM_WRITE(0x02)+VM_MAYREAD(0x10)+VM_MAYWRITE(0x20)+VM_MAYEXEC(0x40)=0x01+0x02+0x10+0x20+0x40=0x03+0x70=0x73 ✓ → DRAW: `+--vm_area_struct--+` `| vm_start=0x78d7ce727000 |` `| vm_end=0x78d7ce728000   |` `| vm_flags=0x73           |` `+----------------------+` → WHY THIS STEP: before mmap ma_root=NULL, after mmap ma_root→node→VMA, at page fault mas_walk() searches for this VMA, if VMA not in tree → returns NULL → fault fails ✓.
 
-4. DECODE ma_root after mmap: ma_root=0xffff888200000006, node_ptr=0xffff888200000006 & 0xFFFFFFFFFFFFFFF0=0xffff888200000000, type_bits=0xffff888200000006 & 0xF=0x6 → VERIFY: 0x6=MAPLE_LEAF_64 ✓ (from maple_tree.h:144 enum maple_type).
+4. AXIOM: ma_root pointer encodes (Address + Type Bits) → SOURCE: lib/maple_tree.c:223 `entry >> MAPLE_NODE_TYPE_SHIFT` → AXIOM: MAPLE_NODE_TYPE_SHIFT=0x03, MAPLE_NODE_TYPE_MASK=0x0F → CALCULATION: If Type=2 (maple_range_64), bits 3-6=0010 → Encoded bits = (2 << 3) = 16 = 0x10. → PREDICTION: ma_root should look like 0xffff888200000016 (assuming some lower bits set or just 0x10) → DECODE EXAMPLE (0xffff888200000010): Node Address = 0xffff888200000010 & ~0xFF = 0xffff888200000000 ✓ → Type Code = (0x10 >> 3) & 0xF = 2 (maple_range_64) ✓ → VERIFY: maple_tree.h:147 `maple_range_64` is index 2.
 
 5. DRAW Leaf Node at 0xffff888200000000: `+--maple_range_64 @ 0xffff888200000000--+` `| pivot[0] = 0x78d7ce727fff             |` `| pivot[1] = 0x0 (unused)               |` `| slot[0]  = 0xffff8881abcd0000 (VMA)   |` `| slot[1]  = NULL                       |` `+---------------------------------------+` → VERIFY: pivot[0]=vm_end-1=0x78d7ce728000-1=0x78d7ce727fff ✓.
 
@@ -61,6 +61,7 @@ F5. atomic_cmpxchg fails (lock already held) → vma_start_read returns 0 → go
 ## NEW THINGS INTRODUCED WITHOUT DERIVATION: None. All addresses derived from: CR2=0x78d7ce727100 (hardware), vm_start from mmap return, pivot from vm_end-1, slot from VMA allocation
 
 3a. DETAILED STRUCT DIAGRAM:
+
 ```
 +======================== struct vm_area_struct ========================+
 | OFFSET | SIZE | FIELD                | YOUR VALUE                     |
@@ -84,6 +85,7 @@ F5. atomic_cmpxchg fails (lock already held) → vma_start_read returns 0 → go
 ```
 
 3b. POINTER RELATIONSHIP DIAGRAM:
+
 ```
 +--task_struct (current)--+          +--mm_struct--+          +--vm_area_struct--+
 | pid = 86356             |          |             |          |                  |
@@ -95,5 +97,5 @@ F5. atomic_cmpxchg fails (lock already held) → vma_start_read returns 0 → go
                                            +-----------+-------------+
                                            (vma->vm_mm == current->mm)
 ```
-→ AXIOM: current=pointer to task_struct of running process → current->mm=pointer to mm_struct (offset ~1000 in task_struct) → vma->vm_mm=pointer to mm_struct (offset 16 in vma) → VERIFY: for VMAs of this process, vma->vm_mm == current->mm ✓.
 
+→ AXIOM: current=pointer to task_struct of running process → current->mm=pointer to mm_struct (offset ~1000 in task_struct) → vma->vm_mm=pointer to mm_struct (offset 16 in vma) → VERIFY: for VMAs of this process, vma->vm_mm == current->mm ✓.
