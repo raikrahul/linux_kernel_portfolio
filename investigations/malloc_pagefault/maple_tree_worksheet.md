@@ -4,7 +4,7 @@
 
 2. CALCULATE vm_end from vm_start: vm_start=0x78d7ce727000, size=4096=0x1000, vm_end=0x78d7ce727000+0x1000=0x78d7ce728000 → VERIFY: 0x78d7ce728000-0x78d7ce727000=0x1000=4096 ✓.
 
-3. DRAW VMA struct after mmap: `+--vm_area_struct @ 0xffff8881abcd0000--+` `| vm_start = 0x78d7ce727000            |` `| vm_end   = 0x78d7ce728000            |` `| vm_flags = 0x100073                  |` `+--------------------------------------+` → VERIFY: 0x78d7ce728000 > 0x78d7ce727000 ✓.
+3. WHY STEP 3: mmap() creates VMA struct in kernel RAM, this struct is what mas_walk() will find later, without VMA the tree is empty and page fault returns NULL → DRAW VMA struct after mmap: `+--vm_area_struct @ [SIMULATED]--+` `| vm_start = 0x78d7ce727000      |` `| vm_end   = 0x78d7ce728000      |` `| vm_flags = 0x73 [DERIVED]      |` `+--------------------------------+` → DERIVATION of vm_flags: PROT_READ|PROT_WRITE → VM_READ(0x1)+VM_WRITE(0x2)+VM_MAYREAD(0x10)+VM_MAYWRITE(0x20)+VM_MAYEXEC(0x40)=0x1+0x2+0x10+0x20+0x40=0x73 ✓ → VERIFY: 0x78d7ce728000 > 0x78d7ce727000 ✓.
 
 4. DECODE ma_root after mmap: ma_root=0xffff888200000006, node_ptr=0xffff888200000006 & 0xFFFFFFFFFFFFFFF0=0xffff888200000000, type_bits=0xffff888200000006 & 0xF=0x6 → VERIFY: 0x6=MAPLE_LEAF_64 ✓ (from maple_tree.h:144 enum maple_type).
 
