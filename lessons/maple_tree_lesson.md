@@ -101,6 +101,44 @@ ALGORITHM: 16-way branching tree with pivots.
 COMPLEXITY: O(log₁₆ N) - with 1000 VMAs, log₁₆(1000) ≈ 3 checks.
 ```
 
+### 2.4 WHY ma_lock EXISTS (RACE CONDITION)
+
+```
+A1. CPU_0, CPU_1, ... CPU_N = multiple processors
+A2. RAM = shared between all CPUs
+A3. mm->mm_mt.ma_root = address in shared RAM
+
+WITHOUT LOCK (race condition):
+  t=0: CPU_0 reads ma_root → 0xffff888200000010
+  t=1: CPU_1 writes ma_root → 0xffff888300000010 (mmap adds VMA)
+  t=2: CPU_0 reads RAM[0xffff888200000000] → FREED/GARBAGE ✗
+
+PROBLEM:
+  CPU_0_read(ma_root) || CPU_1_write(ma_root) → race condition
+  CPU_0 uses stale pointer → crash ✗
+
+WITH LOCK (sequential):
+  t=0: CPU_0 acquire(ma_lock) → success
+  t=1: CPU_1 acquire(ma_lock) → BLOCKED (spins)
+  t=2: CPU_0 reads ma_root → 0xffff888200000010
+  t=3: CPU_0 reads RAM[node] → valid data ✓
+  t=4: CPU_0 release(ma_lock)
+  t=5: CPU_1 acquire(ma_lock) → success
+  t=6: CPU_1 writes ma_root → 0xffff888300000010
+  t=7: CPU_1 release(ma_lock)
+
+∴ lock → sequential access → no race → no crash ✓
+
+spinlock = busy-wait loop:
+  acquire: while (lock != 0) {} ; lock = 1
+  release: lock = 0
+
+RCU (__rcu annotation):
+  readers: no lock needed (read old or new, both valid)
+  writers: wait for all readers to finish before freeing old
+  ∴ read-heavy workloads → RCU faster than spinlock
+```
+
 ---
 
 ## SECTION 3: MAPLE NODE LAYOUT
