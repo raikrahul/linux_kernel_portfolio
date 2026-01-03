@@ -78,7 +78,7 @@ A7. AXIOM: MAPLE_NODE_TYPE_MASK = 0x0F. (SOURCE: maple_tree.h:179)
 A8. AXIOM: enum maple_type at maple_tree.h:144-149: maple_dense=0, maple_leaf_64=1, maple_range_64=2, maple_arange_64=3.
 A9. AXIOM: VMA tree uses maple_range_64 (Type 2). (SOURCE: mm_types.h MM_MT_FLAGS)
 A10. CALCULATION: Encoded type = Type << SHIFT = 2 << 3 = 16 = 0x10.
-A11. AXIOM: Node allocated at address like 0xffff888200000000.
+A11. [SIMULATED] Node allocated at address 0xffff888200000000. (WHY: Kernel addr >= 0xffff800000000000, last 8 bits = 0 for 256-byte alignment. TO GET REAL: Add `pr_info("ma_root=%px", mm->mm_mt.ma_root)` to probe0_driver.c)
 A12. CALCULATION: ma_root = node_address | encoded_type = 0xffff888200000000 | 0x10 = 0xffff888200000010.
 A13. AXIOM: To decode, function mte_node_type() uses: (entry >> 3) & 0xF. (SOURCE: lib/maple_tree.c:223)
 A14. CALCULATION: (0x10 >> 3) & 0xF = 2.
