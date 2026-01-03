@@ -277,6 +277,37 @@ BASE ADDRESS = 0xFFFF8882_00000000
 +----------------------+----------------------+---------------------------+
 ```
 
+### 3.3 LIVE MEMORY VERIFICATION (YOUR MACHINE)
+
+```
+SOURCE: /proc/self/maps (Live Data from `cat` command)
+
+1. CODE SEGMENT (cat binary):
+   63b40e545000-63b40e54a000 r-xp 00002000 103:05 5118097  /usr/bin/cat
+   - Start: 0x63b40e545000
+   - End:   0x63b40e54a000
+   - Size:  0x5000 = 20480 bytes
+   - VM_FLAGS: r-xp (Read, Execute, Private)
+
+2. MAPLE NODE PIVOT CALCULATION (If this was VMA #0):
+   - vm_end = 0x63b40e54a000
+   - pivot[0] = vm_end - 1 = 0x63b40e549FFF
+   - CHECK: 0x63b40e549FFF < 0x63b40e54A000? YES ✓
+
+3. STACK SEGMENT:
+   7fffaced3000-7fffacef4000 rw-p 00000000 00:00 0        [stack]
+   - Start: 0x7fffaced3000
+   - End:   0x7fffacef4000
+   - Size:  0x21000 = 135168 bytes
+   - VM_FLAGS: rw-p (Read, Write, Private)
+
+4. TREE PLACEMENT:
+   These VMAs are stored in the maple tree of the `cat` process.
+   Lookup for instruction fetch @ 0x63b40e545100:
+   - Compare 0x63b40e545100 <= pivot[0] (0x63b40e549FFF)?
+   - YES -> Slot 0 -> VMA found.
+```
+
 ### 3.2 MEMORY LAYOUT DIAGRAM
 
 ```
