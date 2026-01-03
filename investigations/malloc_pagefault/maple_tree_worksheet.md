@@ -1,5 +1,39 @@
 # MAPLE TREE WALK WORKSHEET
 
+## MAPLE TREE STRUCTURE DIAGRAM (YOUR CASE: 1 VMA)
+
+```
++--mm_struct--+      +--maple_tree (mm_mt)--+      +--maple_range_64 NODE--+      +--vm_area_struct--+
+|             |      |                      |      | parent = NULL        |      | vm_start=0x78d7ce727000 |
+| mm_mt ------+----->| ma_flags = 0x0       |      | pivot[0]=0x78d7ce727fff |->| vm_end  =0x78d7ce728000 |
+|             |      | ma_lock  = 0         |      | pivot[1..14] = 0     |      | vm_flags=0x73           |
+|             |      | ma_root  = 0x...010 -+----->| slot[0] = 0x...0000 -+----->|                         |
++-------------+      +----------------------+      | slot[1..15] = NULL   |      +-------------------------+
+                                                   +----------------------+
+                                                   (256 bytes, 4 cache lines)
+```
+
+## MAPLE TREE WITH MANY VMAs (17+ VMAs, 2 levels)
+
+```
+                         mm->mm_mt.ma_root = 0xffff888200000010
+                                    |
+                                    v
+            +--------INTERNAL NODE (maple_range_64)--------+
+            | pivot[0]=0x7fff | pivot[1]=0xffff | ...     |
+            | slot[0]         | slot[1]         | slot[2] |
+            +--------+----------------+-----------+--------+
+                     |                |           |
+                     v                v           v
+           +-LEAF NODE-+    +-LEAF NODE-+    +-LEAF NODE-+
+           |pivot[0]=0x1fff| |pivot[0]=0x9fff| |pivot[0]=0x11fff|
+           |slot[0]→VMA_A  | |slot[0]→VMA_Q  | |slot[0]→VMA_AG  |
+           |slot[1]→VMA_B  | |slot[1]→VMA_R  | |slot[1]→VMA_AH  |
+           |...            | |...            | |...             |
+           |slot[15]→VMA_P | |slot[15]→VMA_AF| |slot[15]→VMA_AV |
+           +---------------+ +---------------+ +----------------+
+```
+
 1. STEP 1 AXIOMATIC TRACE:
 A1. AXIOM: 1 byte = 8 bits.
 A2. AXIOM: RAM = array of bytes, index 0 to N.
