@@ -80,7 +80,14 @@ A5e. WHY SHIFT=3? BINARY EXAMPLE: 0x10 = 0001 0000, bit 4 set, shift >>3 = 0000 
 A6. AXIOM: MAPLE_NODE_TYPE_SHIFT = 0x03. (SOURCE: maple_tree.h:180)
 A7. AXIOM: MAPLE_NODE_TYPE_MASK = 0x0F. (SOURCE: maple_tree.h:179)
 A8. AXIOM: enum maple_type at maple_tree.h:144-149: maple_dense=0, maple_leaf_64=1, maple_range_64=2, maple_arange_64=3.
-A9. AXIOM: VMA tree uses maple_range_64 (Type 2). (SOURCE: mm_types.h MM_MT_FLAGS)
+A9. AXIOM: VMA tree uses maple_range_64 (Type 2). (SOURCE: mm_types.h:1020 MM_MT_FLAGS)
+A9a. WHY maple_range_64? AXIOM: VMAs are RANGES [vm_start, vm_end). Need boundary-based lookup.
+A9b. STRUCT: maple_range_64 (maple_tree.h:103-113) has: parent (8 bytes), pivot[15] (15*8=120 bytes), slot[16] (16*8=128 bytes) = 256 bytes total.
+A9c. DERIVATION: MAPLE_RANGE64_SLOTS = 16 (maple_tree.h:30). pivot count = 16-1 = 15.
+A9d. HOW LOOKUP WORKS: pivot[0]=end of range 0, slot[0]=VMA for range 0. Query: addr <= pivot[0]? If YES, return slot[0].
+A9e. WHY NOT maple_dense? Not enough slots for many VMAs.
+A9f. WHY NOT maple_leaf_64? Stores values directly, not pointers to structs.
+A9g. WHY NOT maple_arange_64? Tracks gaps (for allocation), not needed for simple lookups.
 A10. CALCULATION: Encoded type = Type << SHIFT = 2 << 3 = 16 = 0x10.
 A11. [SIMULATED] Node allocated at address 0xffff888200000000. (WHY: Kernel addr >= 0xffff800000000000, last 8 bits = 0 for 256-byte alignment. TO GET REAL: Add `pr_info("ma_root=%px", mm->mm_mt.ma_root)` to probe0_driver.c)
 A12. CALCULATION: ma_root = node_address | encoded_type = 0xffff888200000000 | 0x10 = 0xffff888200000010.
