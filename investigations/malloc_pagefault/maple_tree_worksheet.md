@@ -32,6 +32,47 @@
            |...            | |...            | |...             |
            |slot[15]→VMA_P | |slot[15]→VMA_AF| |slot[15]→VMA_AV |
            +---------------+ +---------------+ +----------------+
+
+## INTEGER FLOW: STEP-BY-STEP VMA LOOKUP
+
+```
+
+INPUT: faulting_addr = 0x78d7ce727100 (from CR2 register)
+
+STEP 1: Read ma_root
+  Address to read: &mm->mm_mt.ma_root (somewhere in kernel RAM)
+  Value read:      0xffff888200000010
+
+STEP 2: Extract node address from ma_root
+  Calculation:     0xffff888200000010 & 0xFFFFFFFFFFFFFF00
+  Result:          0xffff888200000000 ← this is the node address
+
+STEP 3: Extract type from ma_root
+  Calculation:     (0x10 >> 3) & 0xF = (16 >> 3) & 15 = 2 & 15 = 2
+  Result:          Type 2 = maple_range_64
+
+STEP 4: Read pivot[0] from node
+  Address to read: 0xffff888200000000 + 8 = 0xffff888200000008
+  Value read:      0x78d7ce727fff ← this is vm_end - 1
+
+STEP 5: Compare faulting_addr to pivot[0]
+  Comparison:      0x78d7ce727100 <= 0x78d7ce727fff ?
+  Subtraction:     0x78d7ce727fff - 0x78d7ce727100 = 0xEFF (positive)
+  Result:          TRUE → answer is in slot[0]
+
+STEP 6: Read slot[0] from node
+  Offset calc:     parent(8) + pivots(15×8=120) + slot_index(0×8) = 128
+  Address to read: 0xffff888200000000 + 128 = 0xffff888200000080
+  Value read:      0xffff8881abcd0000 ← this is VMA pointer
+
+STEP 7: Verify VMA range
+  Read vm_start:   RAM[0xffff8881abcd0000 + 0] = 0x78d7ce727000
+  Read vm_end:     RAM[0xffff8881abcd0000 + 8] = 0x78d7ce728000
+  Check lower:     0x78d7ce727100 >= 0x78d7ce727000 ? TRUE
+  Check upper:     0x78d7ce727100 <  0x78d7ce728000 ? TRUE
+
+OUTPUT: VMA found at 0xffff8881abcd0000 ✓
+
 ```
 
 1. STEP 1 AXIOMATIC TRACE:
