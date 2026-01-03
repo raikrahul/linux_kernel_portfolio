@@ -68,6 +68,11 @@ A2. AXIOM: Maple Tree stores root pointer in ma_root. (SOURCE: maple_tree.h:225)
 A3. AXIOM: Maple nodes are 256-byte aligned. (SOURCE: maple_tree.h:271)
 A4. DERIVATION: 256 = 0x100. Low 8 bits of pointer always 0.
 A5. AXIOM: Kernel uses low bits to encode node TYPE. (SOURCE: maple_tree.h:67-70)
+A5a. WHY SHIFT=3? AXIOM: Bits 0-1 reserved for root indicator. (SOURCE: maple_tree.h:67 "0x??1: Root")
+A5b. WHY SHIFT=3? AXIOM: Bit 2 reserved. (SOURCE: maple_tree.h:94 "bit 2 is reserved")
+A5c. WHY SHIFT=3? DERIVATION: Bits 3-6 available for type. 4 bits = values 0-15.
+A5d. WHY SHIFT=3? DERIVATION: enum maple_type has 4 values (0,1,2,3). Fits in 4 bits. ✓
+A5e. WHY SHIFT=3? BINARY EXAMPLE: 0x10 = 0001 0000, bit 4 set, shift >>3 = 0000 0010 = 2.
 A6. AXIOM: MAPLE_NODE_TYPE_SHIFT = 0x03. (SOURCE: maple_tree.h:180)
 A7. AXIOM: MAPLE_NODE_TYPE_MASK = 0x0F. (SOURCE: maple_tree.h:179)
 A8. AXIOM: enum maple_type at maple_tree.h:144-149: maple_dense=0, maple_leaf_64=1, maple_range_64=2, maple_arange_64=3.
