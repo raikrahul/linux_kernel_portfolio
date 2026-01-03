@@ -63,6 +63,10 @@ A27. From Step 2 A12: vm_end = 0x78d7ce728000.
 ∴ VMA struct: `+--vm_area_struct--+` `| vm_start=0x78d7ce727000 |` `| vm_end=0x78d7ce728000 |` `| vm_flags=0x73 |` `+--------------------+`
 
 4. STEP 4 AXIOMATIC TRACE:
+A0a. WHO INITIALIZED mm->mm_mt? fork() → kernel_clone() → copy_mm() → dup_mm() → mm_init() (fork.c:1260).
+A0b. mm_init calls mt_init_flags(&mm->mm_mt, MM_MT_FLAGS). (SOURCE: fork.c:1260)
+A0c. mt_init_flags (maple_tree.h:772-778) does: mt->ma_flags = flags (line 774), spin_lock_init(&mt->ma_lock) (line 776), rcu_assign_pointer(mt->ma_root, NULL) (line 777).
+A0d. DERIVATION: At process creation, ma_root = NULL (tree empty). WITHOUT THIS, ma_root = garbage → crash.
 A1. AXIOM: After mmap, kernel inserts VMA into Maple Tree.
 A2. AXIOM: Maple Tree stores root pointer in ma_root. (SOURCE: maple_tree.h:225)
 A3. AXIOM: Maple nodes are 256-byte aligned. (SOURCE: maple_tree.h:271)
