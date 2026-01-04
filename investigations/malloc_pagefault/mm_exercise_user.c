@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -38,24 +37,30 @@
 #define PAGEMAP_ENTRY_BYTES 8
 
 /*
- * AXIOM 3: THE BITMASKS
- * Entry is 64 bits.
- * Bits 0-54 = PFN.
- * Bit 63    = PAGE_PRESENT.
+ * AXIOM 3: THE BITMASKS (64-bit Pagemap Entry)
+ * Layout: [63: Present] ... [54-0: PFN]
  *
- * TASK 3: CONSTRUCT MASKS
- * PFN MASK: Needs 55 ones (0 to 54).
- * CALCULATION: (1 << 55) - 1.
- * HEX: 0x007FFFFFFFFFFFFF.
+ * DATA: 64 bits = Indices 0 to 63.
  *
- * PRESENT MASK: Bit 63.
- * CALCULATION: 1 << 63.
- * HEX: 0x8000000000000000.
+ * TASK 3: DERIVE MASKS FROM SCRATCH
+ *
+ * 1. PFN_MASK (Bits 0-54)
+ *    Goal: 111...111 (55 ones)
+ *    Logic: (1 << N) - 1 creates N ones.
+ *    Input: N = 55
+ *    Calc: (1 << 55) - 1
+ *    TODO: Define MY_PFN_MASK using raw shift operator. DO NOT USE HEX.
+ *
+ * 2. PRESENT_MASK (Bit 63)
+ *    Goal: 1 at index 63.
+ *    Logic: 1 << Index
+ *    Input: Index = 63
+ *    TODO: Define MY_PRESENT_MASK using raw shift operator. DO NOT USE HEX.
  */
-// TODO: User to fill these
-#define MY_PFN_MASK 0x007FFFFFFFFFFFFF     /* REPLACE WITH HEX */
-#define MY_PRESENT_MASK 0x8000000000000000 /* REPLACE WITH HEX */
-
+// TODO: #define MY_PFN_MASK ...
+// TODO: #define MY_PRESENT_MASK ...
+#define MY_PFN_MASK (1UL << 55) - 1
+#define MY_PRESENT_MASK 1UL << 63
 void print_binary(uint64_t v) {
   for (int i = 63; i >= 0; i--) {
     printf("%lu", (v >> i) & 1);
@@ -65,7 +70,9 @@ void print_binary(uint64_t v) {
   printf("\n");
 }
 
-int main(int argc, char **argv) {
+int main(void) {
+  // Register Signal Handler
+
   /*
    * STEP 1: ALLOCATE MEMORY
    * Syscall: mmap.
@@ -87,10 +94,14 @@ int main(int argc, char **argv) {
   }
   printf("   VA: %p\n", vaddr);
   printf("   PID: %d\n", getpid());
-  printf("   [PAUSED] Press ENTER to trigger Page Fault...\n");
-  printf("   [PAUSED] Sleeping 10s before triggering Page Fault...\n");
+
+  /*
+   * WAIT FOR INPUT
+   */
+  printf(
+      "   [PAUSED] Press ENTER to trigger Page Fault... (Waiting for input)\n");
   fflush(stdout);
-  sleep(10);
+  getchar();
 
   /*
    * STEP 2: FAULT IN
@@ -140,8 +151,21 @@ int main(int argc, char **argv) {
    * VPN = vaddr >> 12.
    * Offset = VPN << 3 (multiply by 8).
    */
-  unsigned long index = (unsigned long)vaddr / PAGE_SIZE_AXIOM;
-  off_t offset = index * PAGEMAP_ENTRY_BYTES;
+  /*
+   * DO IT BY HAND:
+   * vaddr = ........................ (from print above)
+   * PAGE_SIZE = 4096 (0x1000)
+   * VPN = vaddr >> 12.
+   * Offset = VPN << 3 (multiply by 8).
+   */
+  // unsigned long index = (unsigned long)vaddr / PAGE_SIZE_AXIOM; // COMMENTED
+  // OUT: DO IT BY HAND off_t offset = index * PAGEMAP_ENTRY_BYTES; // COMMENTED
+  // OUT: DO IT BY HAND
+
+  // TODO: Implement the following using bitwise operators only (>> and <<)
+  unsigned long index =
+      (unsigned long)vaddr >> 12; // REPLACE WITH: (unsigned long)vaddr >> ...
+  off_t offset = index << 3;      // REPLACE WITH: index << 3
 
   /*
    * STEP 5: READ ENTRY
@@ -156,13 +180,20 @@ int main(int argc, char **argv) {
   printf("4. Raw Entry: 0x%016lx\n", entry);
 
   /*
-   * TASK 5: DECODE PFN
-   * Use your masks defined above.
+   * TASK 5: EXTRACT PFN FROM RAW ENTRY
+   *
+   * AXIOM: Bitwise AND (&)
+   * 1 & 1 = 1
+   * 1 & 0 = 0
+   *
+   * DATA:
+   * raw_entry = ........................ (from print above)
+   * PFN_MASK  = ........................ (calculated above)
+   *
+   * OPERATION: raw_entry & PFN_MASK
+   *
+   * TODO: Extract PFN and Present bit using your macros.
    */
-  if (MY_PRESENT_MASK == 0) {
-    printf("   STOP: CONSTANTS NOT DEFINED. EDIT CODE.\n");
-    return 1;
-  }
 
   uint64_t pfn = entry & MY_PFN_MASK;
   int present = (entry & MY_PRESENT_MASK) ? 1 : 0;
