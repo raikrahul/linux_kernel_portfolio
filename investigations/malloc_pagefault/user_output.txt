@@ -1,0 +1,4 @@
+1. Allocating...
+   VA: 0x79e15f149000
+   PID: 277231
+   [PAUSED] Press ENTER to trigger Page Fault... (Waiting for input)

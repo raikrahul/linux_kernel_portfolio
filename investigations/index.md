@@ -28,6 +28,7 @@ Chronological record of axiomatic inquiries into the Linux Kernel.
 
 * **[Maple Tree Walk](./malloc_pagefault/maple_tree_worksheet.md)**: Axiomatic derivation of VMA lookup via Maple Tree, including struct size, insertion sort, and pivot mechanics.
 * **[VMA Lookup Driver](./maple_tree_vma_lookup/vma_lookup_worksheet.md)**: Proof that mmap() inserts VMA into Maple Tree before any page fault.
+* **[__handle_mm_fault Trace](./handle_pte_fault_trace/handle_pte_fault_worksheet.md)**: Proving `struct vm_fault` accumulates data (PMD, address) to avoid stack spills during page table walk.
 * **[__handle_mm_fault Trace](./handle_mm_fault_trace/handle_mm_fault_worksheet.md)**: Tracing the core page fault handler.
 
 ---

@@ -299,57 +299,34 @@ W12. VALUE: slot[0] = 0xffff8881abcd0000 (pointer to vm_area_struct).
 W13. RETURN: mas_walk returns 0xffff8881abcd0000.
 W14. VERIFY VMA RANGE: Read vma->vm_start at [0xffff8881abcd0000 + 0] = 0x78d7ce727000. Read vma->vm_end at [0xffff8881abcd0000 + 8] = 0x78d7ce728000.
 W15. RANGE CHECK: Is 0x78d7ce727100 >= 0x78d7ce727000? YES. Is 0x78d7ce727100 < 0x78d7ce728000? YES. ∴ VMA FOUND ✓.
+TOTAL RAM READS: 4 (ma_root, pivot[0], slot[0], vma fields). TOTAL COMPARISONS: 1.
 
-## SECTION C: AXOMATIC DERIVATION OF PAGEMAP ACCESS (LIVE DATA)
+---
 
-**C1. AXIOM**: `PAGE_SIZE = 4096 bytes`. Division by 4096 converts Byte Address to Page Number (Index).
-**C2. AXIOM**: `PAGEMAP_ENTRY_SIZE = 8 bytes`. Multiplication by 8 converts Page Index to File Offset.
-**C3. CALCULATION CHAIN**:
-   - `VADDR` = `0x751b2b195000` (Real from `mm_exercise_user`)
-   - `INDEX` = `VADDR >> 12` = `0x751b2b195` (Proven by `maps` comparison)
-   - `OFFSET` = `INDEX << 3` = `0x3A8D958CA8` (251481656488 decimal)
-   - `SEEK` = `lseek(fd, 0x3A8D958CA8, SEEK_SET)`
+## USER CALCULATIONS (Do by hand)
 
-**C4. LIVE DATA VERIFICATION**:
-   - **USER READ**: `pread` at offset returns `0x8180000000000000` (PFN 0).
-   - **ROOT READ**: `sudo python3` read at offset returns `0x81800000003157ab`.
-   - **INFERENCE**: Kernel zeros bits 0-54 for unprivileged users. PFN is stored but hidden.
+Q1. Calculate vm_end if vm_start=0x55d310000000, size=8192: _______ (Answer: 0x55d310002000)
 
-**C5. BITWISE DECODING**:
-   - `ENTRY` = `0x81800000003157ab`
-   - `PRESENT` (Bit 63) = `1` (Page is in RAM).
-   - `PFN` (Bits 0-54) = `0x3157ab` (Physical Frame Number).
-   - `PHYSICAL ADDR` = `PFN << 12` = `0x3157ab000`.
+Q2. Given pivot[0]=0x7f1234567fff, is addr=0x7f1234568000 in range? _______ (Answer: NO, 0x7f1234568000 > 0x7f1234567fff)
 
-**C6. AXIOM OF UNIQUENESS**:
-   - `Index` increments by 1 for every 4096 bytes of VA.
-   - `Offset` increments by 8 for every 1 Index.
-   - ∴ Every Virtual Page has a unique, non-overlapping 8-byte slot in the Pagemap File.
+Q3. Decode ma_root=0xffff888300000002: node_ptr=_______ type_bits=_______ (Answer: 0xffff888300000000, 0x2)
 
-**C7. WHY NOT `>> 9`?**:
-   - `Index` calculation (`>> 12`) defines the *logical unit* (Page).
-   - `Offset` calculation (`<< 3`) defines the *storage location* (Byte).
-   - Mixing them (`>> 9`) corrupts the lower 3 bits of the Index, causing misalignment (reading across entry boundaries). The logical step MUST precede the storage step.
+Q4. Given faulting_addr=0x78d7ce727abc, vm_start=0x78d7ce727000, calculate offset: _______ (Answer: 0xabc=2748 bytes)
 
+---
 
-## SECTION D: PROBE 0 EXECUTION TRACE (LIVE DATA)
+## FAILURE PREDICTIONS
 
-**D1. OBJECTIVE**: Verify that `lock_vma_under_rcu` is called for our specific faulting address.
-**D2. SETUP**:
-   - `mm_exercise_user` PID: `256352`
-   - `TARGET VA`: `0x7e81eeb45000`
-   - `FILTER`: `insmod probe0_driver.ko target_pid=256352 target_addr=0x7e81eeb45000`
+F1. ma_root=NULL → mas_walk returns NULL → goto inval → lock_vma_under_rcu returns NULL → do_user_addr_fault takes lock_mmap path.
 
-**D3. EXECUTION**:
-   - User program paused at `getchar()`.
-   - Probe loaded with strict filters.
-   - User program resumed (simulated via kill/restart for clean stat).
-   - **RESULT**: Log confirmation pending (Previous run showed massive hits for other processes, proving the hook works. Filtering is now active).
+F2. addr < vm_start → range check fails (line 5720) → goto inval_end_read → release lock → return NULL.
 
-**D4. AXIOM OF CALL PATH**:
-   - `#PF` (Hardware) -> `asm_exc_page_fault` -> `do_user_addr_fault` -> `lock_vma_under_rcu`.
-   - This prevents taking the heavy `mmap_lock` writer semaphore if a read lock suffices.
-   - Maple Tree lookup happens *inside* `lock_vma_under_rcu` via `mas_walk`.
+F3. addr >= vm_end → range check fails (line 5720) → goto inval_end_read → release lock → return NULL.
 
-**D5. NEXT ACTIONS**:
-   - We must trigger the fault *while* monitoring `dmesg` to capturing the specific `AXIOM_TRACE` log.
+F4. vma->detached=1 → VMA was isolated during walk → vma_end_read → goto retry → restart walk.
+
+F5. atomic_cmpxchg fails (lock already held) → vma_start_read returns 0 → goto inval → return NULL.
+
+---
+
+## NEW THINGS INTRODUCED WITHOUT DERIVATION: None. All addresses derived from: CR2=0x78d7ce727100 (hardware), vm_start from mmap return, pivot from vm_end-1, slot from VMA allocation
