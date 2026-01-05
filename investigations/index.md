@@ -31,5 +31,20 @@ Chronological record of axiomatic inquiries into the Linux Kernel.
 * **[__handle_mm_fault Trace](./handle_pte_fault_trace/handle_pte_fault_worksheet.md)**: Proving `struct vm_fault` accumulates data (PMD, address) to avoid stack spills during page table walk.
 * **[__handle_mm_fault Trace](./handle_mm_fault_trace/handle_mm_fault_worksheet.md)**: Tracing the core page fault handler.
 
+## Batch 5: Hardware Paging Demos
+
+* **[Read CR3](./paging_demos/demo_01_read_cr3/)**: Inspecting the Page Global Directory pointer.
+* **[Walk 4KB](./paging_demos/demo_07_walk_4kb/)**: Manual page table walk for standard pages.
+* **[Walk 2MB](./paging_demos/demo_08_walk_2mb/)**: Handling Huge Pages in software.
+* **[VMA Walk](./paging_demos/demo_15_vma_walk/)**: Traversing `vm_area_struct` red-black trees.
+* **[TLB Flush](./paging_demos/demo_18_tlb_flush/)**: Invalidating translation caches.
+
+## Batch 6: Imported Kernel Exercises
+
+* **[Buddy Fragment](./kernel_exercises/buddy_fragment/)**: Investigating fragmentation in the buddy allocator.
+* **[Page Table Split Lock](./kernel_exercises/ptlock_split/)**: Concurrency primitives for page tables.
+* **[Malloc Pagefault](./kernel_exercises/malloc_pagefault/)**: User-kernel boundary analysis.
+* **[Full Exercise Archive](./kernel_exercises/)**: Complete collection of 80+ kernel drills.
+
 ---
 *Return to [Home](../README.md)*
